@@ -11,8 +11,6 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/queries/profile";
 import { getReportData } from "@/lib/reportData";
 import type ExcelJS from "exceljs";
-import type ExcelJS from "exceljs";
-import type ExcelJS from "exceljs";
 
 export const dynamic = "force-dynamic";
 
