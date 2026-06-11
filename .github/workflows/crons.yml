@@ -2,33 +2,36 @@ name: WPShield Cron Jobs
 
 on:
   schedule:
-    - cron: '0 * * * *'    # every hour — runs all crons
-    - cron: '*/5 * * * *'  # every 5 min — uptime check only
-  workflow_dispatch:        # allows manual trigger from GitHub UI
+    - cron: '0 * * * *'
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
 
 jobs:
-  run-crons:
+  hourly-crons:
     runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '0 * * * *'
     steps:
-      - name: Run all crons (hourly)
-        if: github.event.schedule == '0 * * * *' || github.event_name == 'workflow_dispatch'
+      - name: Run all crons
         env:
           BASE_URL: ${{ secrets.RENDER_APP_URL }}
           SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          curl -s -o /dev/null -w "threat-intel: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/threat-intel"
-          curl -s -o /dev/null -w "vuln-check: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/vuln-check"
-          curl -s -o /dev/null -w "uptime-check: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/uptime-check"
-          curl -s -o /dev/null -w "hardening-audit: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/hardening-audit"
-          curl -s -o /dev/null -w "safe-browsing: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/safe-browsing"
-          curl -s -o /dev/null -w "reconciliation: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/reconciliation"
-          curl -s -o /dev/null -w "scheduled-reports: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/scheduled-reports"
-          curl -s -o /dev/null -w "send-reports: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/send-reports"
+          curl -sf -o /dev/null -w "threat-intel: %{http_code}\n"      -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/threat-intel"      || echo "threat-intel failed"
+          curl -sf -o /dev/null -w "vuln-check: %{http_code}\n"        -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/vuln-check"        || echo "vuln-check failed"
+          curl -sf -o /dev/null -w "uptime-check: %{http_code}\n"      -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/uptime-check"      || echo "uptime-check failed"
+          curl -sf -o /dev/null -w "hardening-audit: %{http_code}\n"   -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/hardening-audit"   || echo "hardening-audit failed"
+          curl -sf -o /dev/null -w "safe-browsing: %{http_code}\n"     -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/safe-browsing"     || echo "safe-browsing failed"
+          curl -sf -o /dev/null -w "reconciliation: %{http_code}\n"    -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/reconciliation"    || echo "reconciliation failed"
+          curl -sf -o /dev/null -w "scheduled-reports: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/scheduled-reports" || echo "scheduled-reports failed"
+          curl -sf -o /dev/null -w "send-reports: %{http_code}\n"      -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/send-reports"      || echo "send-reports failed"
 
-      - name: Uptime check (every 5 min)
-        if: github.event.schedule == '*/5 * * * *'
+  uptime-check:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '*/5 * * * *'
+    steps:
+      - name: Uptime check
         env:
           BASE_URL: ${{ secrets.RENDER_APP_URL }}
           SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          curl -s -o /dev/null -w "uptime-check: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/uptime-check"
+          curl -sf -o /dev/null -w "uptime-check: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/uptime-check" || echo "uptime-check failed"
