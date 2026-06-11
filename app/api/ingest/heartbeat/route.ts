@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 export async function POST(request: Request) {
   try {
     const auth = await verifySiteToken(request);
-    if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+    if (auth.error || !auth.site_id) return NextResponse.json({ error: auth.error ?? 'Unauthorized' }, { status: auth.status ?? 401 });
 
     const payload = await request.json();
     const supabase = createAdminClient();
