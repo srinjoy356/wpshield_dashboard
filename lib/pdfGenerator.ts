@@ -1,256 +1,540 @@
 /**
- * Pure Node.js PDF generator — no Python, no reportlab, no spawn.
- * Uses jsPDF which is already a dependency in the project.
- * Works on Render, Vercel, or any Node.js environment.
+ * PDF Generator — Node.js/jsPDF implementation
+ * Faithfully replicates generate_report.py output:
+ * - Page 1: Cover with score box, company info, period
+ * - Page 2: Executive Summary with stat boxes, events table, analyst review
+ * - Page 3: Security Issues (vulns, top IPs, file changes)
+ * - Page 4: Action Items (failed hardening checks)
+ * Brand: Dark Teal #0A6358, Light Teal bg #E6F4F1
  */
 
+const DARK_TEAL   = [10, 99, 88]  as [number, number, number];
+const LIGHT_TEAL  = [45, 212, 191] as [number, number, number];
+const TEAL_BG     = [230, 244, 241] as [number, number, number];
+const BLACK       = [0, 0, 0]      as [number, number, number];
+const WHITE       = [255, 255, 255] as [number, number, number];
+const GRAY        = [107, 114, 128] as [number, number, number];
+const LIGHT_GRAY  = [249, 250, 251] as [number, number, number];
+const RED         = [220, 38, 38]   as [number, number, number];
+const ORANGE      = [234, 88, 12]   as [number, number, number];
+const GREEN       = [22, 163, 74]   as [number, number, number];
+const YELLOW      = [202, 138, 4]   as [number, number, number];
+
+function getMaturityColor(score: number): [number, number, number] {
+  if (score >= 91) return DARK_TEAL;
+  if (score >= 81) return GREEN;
+  if (score >= 61) return YELLOW;
+  if (score >= 41) return ORANGE;
+  return RED;
+}
+
+function getMaturityLabel(score: number): string {
+  if (score >= 91) return 'EXCELLENT';
+  if (score >= 81) return 'GOOD';
+  if (score >= 61) return 'NEEDS ATTENTION';
+  if (score >= 41) return 'MODERATE RISK';
+  return 'CRITICAL RISK';
+}
+
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  try {
+    const dt = new Date(dateStr);
+    return dt.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch { return dateStr; }
+}
+
+function formatAttackType(pattern: string): string {
+  const mapping: Record<string, string> = {
+    sensitive_404: 'Sensitive File Probe',
+    sqli: 'SQL Injection',
+    xss: 'Cross-Site Scripting',
+    lfi: 'Local File Inclusion',
+    rce: 'Remote Code Execution',
+    xmlrpc: 'XML-RPC Abuse',
+    scanner_ua: 'Security Scanner',
+    wpscan_ua: 'WPScan Detected',
+  };
+  return mapping[pattern?.toLowerCase()] || (pattern || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+
 export async function generatePdfBuffer(reportData: any): Promise<Buffer> {
-  // Dynamically import jsPDF to avoid SSR issues
   const { jsPDF } = await import('jspdf');
-  
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  
-  const company     = reportData.company     || {};
-  const summary     = reportData.summary     || {};
-  const attacks     = reportData.attacks     || [];
-  const vulnAlerts  = reportData.vulnAlerts  || [];
-  const hardening   = reportData.hardening   || {};
 
-  const pageW  = 210;
-  const margin = 16;
-  const colW   = pageW - margin * 2;
-  let   y      = margin;
+  const PW = 210; // page width
+  const PH = 297; // page height
+  const M  = 25;  // margin (matches Python 25mm)
+  const CW = PW - M * 2; // content width = 160mm
+  const HEADER_H = 21;   // 60pt ≈ 21mm
+  const FOOTER_H = 16;   // 45pt ≈ 16mm
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-  const newPageIfNeeded = (needed = 20) => {
-    if (y + needed > 277) { doc.addPage(); y = margin; }
+  const company   = reportData.company   || {};
+  const maturity  = reportData.maturity  || {};
+  const stats     = reportData.stats     || {};
+  const score     = maturity.score       ?? 0;
+  const matColor  = getMaturityColor(score);
+  const matLabel  = getMaturityLabel(score);
+  const review    = reportData.analystReview;
+  const vulns     = reportData.vulnerablePlugins || [];
+  const ips       = reportData.topAttackingIps   || [];
+  const files     = reportData.recentFileChanges || [];
+  const failed    = reportData.failedChecks      || [];
+
+  const FAIL_NAMES: Record<string, string> = {
+    'No Vulnerable Plugins':              'Vulnerable Plugins Detected',
+    'No High Open Alerts':               'Too Many High Severity Alerts',
+    'No Critical Open Alerts':           'Critical Alerts Unresolved',
+    'No Recent File Modification Alerts':'Unexpected File Modifications',
+    'Uptime Healthy':                    'Site Offline or Unreachable',
+    'Plugin Heartbeat Recent':           'Plugin Not Reporting Data',
+    'HTTPS Enforced':                    'HTTPS Not Configured',
   };
 
-  const sectionTitle = (text: string) => {
-    newPageIfNeeded(14);
-    doc.setFillColor(28, 25, 23);
-    doc.rect(margin, y, colW, 8, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
-    doc.text(text.toUpperCase(), margin + 3, y + 5.5);
-    doc.setTextColor(28, 25, 23);
-    y += 12;
-  };
-
-  const row = (label: string, value: string, indent = 0) => {
-    newPageIfNeeded(7);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text(label, margin + indent, y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(String(value ?? '—'), margin + indent + 50, y);
-    y += 6;
-  };
-
-  const bodyText = (text: string, indent = 0) => {
-    newPageIfNeeded(7);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    const lines = doc.splitTextToSize(text, colW - indent);
-    doc.text(lines, margin + indent, y);
-    y += lines.length * 5 + 2;
-  };
-
-  const divider = () => {
-    newPageIfNeeded(5);
-    doc.setDrawColor(231, 229, 228);
-    doc.line(margin, y, margin + colW, y);
-    y += 5;
-  };
-
-  // ── COVER ──────────────────────────────────────────────────────────────────
-  // Header bar
-  doc.setFillColor(13, 148, 136); // brand teal
-  doc.rect(0, 0, 210, 32, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(20);
-  doc.setFont('helvetica', 'bold');
-  doc.text('WPShield Security Report', margin, 15);
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Powered by Cybernara', margin, 23);
-
-  y = 42;
-  doc.setTextColor(28, 25, 23);
-
-  // Company info card
-  doc.setFillColor(247, 246, 245);
-  doc.roundedRect(margin, y, colW, 36, 3, 3, 'F');
-  doc.setFontSize(14);
-  doc.setFont('helvetica', 'bold');
-  doc.text(company.display_name || 'Unknown Company', margin + 6, y + 10);
-  doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(120, 113, 108);
-  doc.text(`Site: ${company.site_url || '—'}`, margin + 6, y + 18);
-  doc.text(`Report Period: Last ${reportData.periodDays || 30} days`, margin + 6, y + 24);
-  doc.text(`Generated: ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`, margin + 6, y + 30);
-  doc.setTextColor(28, 25, 23);
-  y += 44;
-
-  // Score badge
-  const score = hardening.score ?? 0;
-  const scoreColor: [number, number, number] =
-    score >= 90 ? [13, 148, 136] :
-    score >= 70 ? [34, 197, 94]  :
-    score >= 50 ? [234, 179, 8]  :
-                  [239, 68, 68];
-
-  doc.setFillColor(...scoreColor);
-  doc.roundedRect(margin, y, 60, 24, 3, 3, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(20);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`${score}/100`, margin + 6, y + 14);
-  doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Security Score', margin + 6, y + 20);
-  doc.setTextColor(28, 25, 23);
-
-  // Quick stats beside score
-  const stats = [
-    { label: 'Total Attacks',    value: String(summary.totalAttacks   ?? attacks.length) },
-    { label: 'Open Alerts',      value: String(summary.openAlerts     ?? '0')             },
-    { label: 'Vuln Plugins',     value: String(vulnAlerts.length)                         },
-  ];
-  let sx = margin + 68;
-  stats.forEach(s => {
-    doc.setFillColor(247, 246, 245);
-    doc.roundedRect(sx, y, 38, 24, 3, 3, 'F');
-    doc.setFontSize(16);
-    doc.setFont('helvetica', 'bold');
-    doc.text(s.value, sx + 4, y + 13);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(120, 113, 108);
-    doc.text(s.label, sx + 4, y + 20);
-    doc.setTextColor(28, 25, 23);
-    sx += 42;
-  });
-  y += 32;
-  divider();
-
-  // ── SECTION 1: EXECUTIVE SUMMARY ──────────────────────────────────────────
-  sectionTitle('1. Executive Summary');
-  row('Company',        company.display_name || '—');
-  row('Site URL',       company.site_url     || '—');
-  row('Uptime Status',  company.uptime_status || '—');
-  row('Period',         `Last ${reportData.periodDays || 30} days`);
-  row('Total Attacks',  String(attacks.length));
-  row('Open Alerts',    String(summary.openAlerts ?? '0'));
-  row('Security Score', `${score} / 100`);
-  y += 4;
-
-  // ── SECTION 2: HARDENING CHECKLIST ────────────────────────────────────────
-  sectionTitle('2. Hardening Checklist');
-  const checks = hardening.checks || [];
-  if (checks.length === 0) {
-    bodyText('No hardening data available. Run a hardening audit from the dashboard.');
-  } else {
-    checks.forEach((c: any) => {
-      newPageIfNeeded(8);
-      const icon = c.status === 'pass' ? '✓' : c.status === 'fail' ? '✗' : '?';
-      const col: [number, number, number] =
-        c.status === 'pass' ? [21, 128, 61] :
-        c.status === 'fail' ? [185, 28, 28] :
-                              [120, 113, 108];
-      doc.setTextColor(...col);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`${icon} ${c.check_name || c.name || '—'}`, margin, y);
-      doc.setTextColor(120, 113, 108);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.text(`+${c.score_impact || 0} pts  ·  Priority: ${c.priority || '—'}`, margin + 80, y);
-      doc.setTextColor(28, 25, 23);
-      y += 6;
-    });
-  }
-  y += 4;
-
-  // ── SECTION 3: ATTACK EVENTS ───────────────────────────────────────────────
-  sectionTitle('3. Attack Events');
-  if (attacks.length === 0) {
-    bodyText('No attack events recorded in the selected period.');
-  } else {
-    // Table header
-    newPageIfNeeded(10);
-    doc.setFillColor(245, 245, 244);
-    doc.rect(margin, y, colW, 7, 'F');
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Date',        margin + 2,  y + 5);
-    doc.text('Pattern',     margin + 28, y + 5);
-    doc.text('IP Address',  margin + 74, y + 5);
-    doc.text('Severity',    margin + 120, y + 5);
-    y += 9;
-
-    attacks.slice(0, 50).forEach((a: any) => {
-      newPageIfNeeded(7);
-      const date = a.occurred_at ? new Date(a.occurred_at).toLocaleDateString() : '—';
-      const sevColor: [number, number, number] =
-        a.severity === 'critical' ? [185, 28, 28]  :
-        a.severity === 'high'     ? [194, 65, 12]  :
-        a.severity === 'medium'   ? [161, 98, 7]   :
-                                    [120, 113, 108];
-
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(28, 25, 23);
-      doc.text(date,                              margin + 2,  y);
-      doc.text(String(a.pattern_type || '—').substring(0, 22), margin + 28, y);
-      doc.text(String(a.ip           || '—'),     margin + 74, y);
-      doc.setTextColor(...sevColor);
-      doc.setFont('helvetica', 'bold');
-      doc.text(String(a.severity     || '—'),     margin + 120, y);
-      doc.setTextColor(28, 25, 23);
-      y += 6;
-    });
-
-    if (attacks.length > 50) {
-      bodyText(`... and ${attacks.length - 50} more events. Download the Excel report for full data.`);
+  // ── HELPERS ──────────────────────────────────────────────────────────────
+  /** Draw horizontal gradient left-to-right (approximated with bands) */
+  function drawGradient(x: number, y: number, w: number, h: number,
+                        c1: [number,number,number], c2: [number,number,number], steps = 60) {
+    const sw = w / steps;
+    for (let i = 0; i < steps; i++) {
+      const t = i / steps;
+      const r = Math.round(c1[0] + (c2[0] - c1[0]) * t);
+      const g = Math.round(c1[1] + (c2[1] - c1[1]) * t);
+      const b = Math.round(c1[2] + (c2[2] - c1[2]) * t);
+      doc.setFillColor(r, g, b);
+      doc.rect(x + sw * i, y, sw + 0.3, h, 'F');
     }
   }
-  y += 4;
 
-  // ── SECTION 4: VULNERABLE PLUGINS ─────────────────────────────────────────
-  sectionTitle('4. Vulnerable Plugins');
-  if (vulnAlerts.length === 0) {
-    bodyText('No vulnerable plugins detected. All active plugins are clean.');
+  /** Draw header + footer on current page */
+  function drawHeaderFooter(pageNum: number) {
+    // Header gradient
+    drawGradient(0, 0, PW, HEADER_H, DARK_TEAL, BLACK);
+    // Logo text (fallback — no image loading in jsPDF server-side easily)
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Cybernara WPShield', M, HEADER_H / 2 + 2);
+
+    // Footer gradient
+    drawGradient(0, PH - FOOTER_H, PW, FOOTER_H, DARK_TEAL, BLACK);
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Confidential – Security Report | Page ${pageNum}`, PW - M, PH - FOOTER_H / 2 + 1, { align: 'right' });
+  }
+
+  /** Gradient table header row */
+  function drawTableHeaderRow(cols: { label: string; x: number; w: number; align?: string }[], y: number, h = 8) {
+    const totalW = cols.reduce((s, c) => s + c.w, 0);
+    drawGradient(cols[0].x, y, totalW, h, DARK_TEAL, BLACK);
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    cols.forEach(col => {
+      const tx = col.align === 'center' ? col.x + col.w / 2 : col.x + 3;
+      doc.text(col.label, tx, y + h / 2 + 1.5, { align: col.align === 'center' ? 'center' : 'left' });
+    });
+    doc.setTextColor(...BLACK);
+  }
+
+  /** Alternating row background */
+  function rowFill(y: number, h: number, idx: number, cols: { x: number; w: number }[]) {
+    const totalW = cols.reduce((s, c) => s + c.w, 0);
+    doc.setFillColor(...(idx % 2 === 0 ? WHITE : TEAL_BG));
+    doc.rect(cols[0].x, y, totalW, h, 'F');
+    // Grid lines
+    doc.setDrawColor(...DARK_TEAL);
+    doc.setLineWidth(0.2);
+    doc.rect(cols[0].x, y, totalW, h, 'S');
+  }
+
+  // ── PAGE 1: COVER ────────────────────────────────────────────────────────
+  drawHeaderFooter(1);
+
+  let y = HEADER_H + 20;
+
+  // "SECURITY REPORT"
+  doc.setTextColor(...DARK_TEAL);
+  doc.setFontSize(26);
+  doc.setFont('helvetica', 'bold');
+  doc.text('SECURITY REPORT', PW / 2, y, { align: 'center' });
+  y += 10;
+
+  // Company name
+  doc.setTextColor(...BLACK);
+  doc.setFontSize(18);
+  doc.text(company.display_name || '', PW / 2, y, { align: 'center' });
+  y += 7;
+
+  // Site URL
+  doc.setTextColor(...GRAY);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(company.site_url || '', PW / 2, y, { align: 'center' });
+  y += 5;
+
+  // Thin teal line
+  doc.setDrawColor(...DARK_TEAL);
+  doc.setLineWidth(0.5);
+  doc.line(PW / 2 - 30, y, PW / 2 + 30, y);
+  y += 5;
+
+  // Period | Generated
+  doc.setFontSize(9);
+  const periodText = `Period: ${reportData.period || 'Last 30 Days'}    |    Generated: ${formatDate(reportData.generatedAt)}`;
+  doc.text(periodText, PW / 2, y, { align: 'center' });
+  y += 12;
+
+  // Score box
+  const boxW = 120;
+  const boxX = (PW - boxW) / 2;
+  const boxH = 48;
+  doc.setFillColor(...TEAL_BG);
+  doc.setDrawColor(...matColor);
+  doc.setLineWidth(1.5);
+  doc.roundedRect(boxX, y, boxW, boxH, 3, 3, 'FD');
+
+  // Score number
+  doc.setTextColor(...matColor);
+  doc.setFontSize(48);
+  doc.setFont('helvetica', 'bold');
+  doc.text(String(score), PW / 2, y + 24, { align: 'center' });
+
+  // Maturity label
+  doc.setFontSize(13);
+  doc.text(matLabel, PW / 2, y + 34, { align: 'center' });
+
+  // "out of 100 points"
+  doc.setTextColor(...GRAY);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text('out of 100 points', PW / 2, y + 42, { align: 'center' });
+  y += boxH + 8;
+
+  // "Powered by"
+  doc.setFontSize(8);
+  doc.text('Powered by Cybernara WPShield', PW / 2, y, { align: 'center' });
+
+  // ── PAGE 2: EXECUTIVE SUMMARY ────────────────────────────────────────────
+  doc.addPage();
+  drawHeaderFooter(2);
+  y = HEADER_H + 8;
+
+  doc.setTextColor(...DARK_TEAL);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Executive Summary', M, y);
+  y += 3;
+  doc.setDrawColor(...DARK_TEAL);
+  doc.setLineWidth(0.5);
+  doc.line(M, y, M + CW, y);
+  y += 8;
+
+  // 4 stat boxes
+  const statBoxW = CW / 4;
+  const statBoxH = 20;
+  const statBoxY = y;
+  const statsArr = [
+    { label: 'Attacks',      value: stats.totalAttacks     ?? 0 },
+    { label: 'Logins',       value: stats.totalLogins      ?? 0 },
+    { label: 'File Changes', value: stats.totalFileChanges ?? 0 },
+    { label: 'Open Alerts',  value: stats.openAlerts       ?? 0 },
+  ];
+  statsArr.forEach((s, i) => {
+    const bx = M + i * statBoxW;
+    doc.setFillColor(...TEAL_BG);
+    doc.setDrawColor(...DARK_TEAL);
+    doc.setLineWidth(0.3);
+    doc.rect(bx, statBoxY, statBoxW, statBoxH, 'FD');
+    doc.setTextColor(...DARK_TEAL);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text(String(s.value), bx + statBoxW / 2, statBoxY + 11, { align: 'center' });
+    doc.setTextColor(...GRAY);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(s.label, bx + statBoxW / 2, statBoxY + 17, { align: 'center' });
+  });
+  y = statBoxY + statBoxH + 8;
+
+  // Analyst review
+  if (review?.status === 'published') {
+    doc.setTextColor(...DARK_TEAL);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Security Analyst Summary', M, y);
+    y += 6;
+    doc.setTextColor(...BLACK);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    if (review.vulnerable_plugins_note) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Plugins: ', M, y);
+      doc.setFont('helvetica', 'normal');
+      const lines = doc.splitTextToSize(review.vulnerable_plugins_note, CW - 20);
+      doc.text(lines, M + 18, y);
+      y += lines.length * 5 + 2;
+    }
+    if (review.failed_hardening_note) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Hardening: ', M, y);
+      doc.setFont('helvetica', 'normal');
+      const lines = doc.splitTextToSize(review.failed_hardening_note, CW - 22);
+      doc.text(lines, M + 22, y);
+      y += lines.length * 5 + 2;
+    }
+    if (review.suspicious_logins_note) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('Logins: ', M, y);
+      doc.setFont('helvetica', 'normal');
+      const lines = doc.splitTextToSize(review.suspicious_logins_note, CW - 18);
+      doc.text(lines, M + 18, y);
+      y += lines.length * 5 + 2;
+    }
+    y += 4;
+  }
+
+  // Health sentence
+  const health = score >= 80 ? 'Your site is in good security health.'
+    : score >= 60 ? 'Your site needs some security attention.'
+    : 'Your site has critical security issues that need immediate action.';
+  doc.setTextColor(...GRAY);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'oblique');
+  doc.text(health, M, y);
+  y += 8;
+
+  // Events table
+  doc.setTextColor(...DARK_TEAL);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Events This Period', M, y);
+  y += 5;
+
+  const evCols = [
+    { label: 'Type',   x: M,       w: 70 },
+    { label: 'Count',  x: M + 70,  w: 40, align: 'center' },
+    { label: 'Status', x: M + 110, w: 50 },
+  ];
+  drawTableHeaderRow(evCols, y);
+  y += 8;
+
+  const evRows = [
+    ['Attack Attempts', String(stats.totalAttacks ?? 0), 'Review Required'],
+    ['Login Attempts',  String(stats.totalLogins  ?? 0), 'Normal Activity'],
+    ['File Changes',    String(stats.totalFileChanges ?? 0), 'Review Required'],
+    ['Open Alerts',     String(stats.openAlerts   ?? 0), 'Action Needed'],
+  ];
+  evRows.forEach((row, i) => {
+    rowFill(y, 7, i, evCols);
+    doc.setTextColor(...BLACK);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(row[0], evCols[0].x + 3, y + 5);
+    doc.text(row[1], evCols[1].x + evCols[1].w / 2, y + 5, { align: 'center' });
+    doc.text(row[2], evCols[2].x + 3, y + 5);
+    y += 7;
+  });
+
+  // ── PAGE 3: SECURITY ISSUES ──────────────────────────────────────────────
+  doc.addPage();
+  drawHeaderFooter(3);
+  y = HEADER_H + 8;
+
+  doc.setTextColor(...DARK_TEAL);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Security Issues Found', M, y);
+  y += 3;
+  doc.setDrawColor(...DARK_TEAL);
+  doc.setLineWidth(0.5);
+  doc.line(M, y, M + CW, y);
+  y += 8;
+
+  // Vulnerable Plugins
+  doc.setFontSize(13);
+  doc.text('Vulnerable Plugins', M, y);
+  y += 6;
+
+  if (vulns.length > 0) {
+    const vCols = [
+      { label: 'Plugin',      x: M,        w: 55 },
+      { label: 'Version',     x: M + 55,   w: 20 },
+      { label: 'CVE ID',      x: M + 75,   w: 28 },
+      { label: 'Severity',    x: M + 103,  w: 22 },
+      { label: 'Fix Version', x: M + 125,  w: 35 },
+    ];
+    drawTableHeaderRow(vCols, y, 8);
+    y += 8;
+    vulns.forEach((v: any, i: number) => {
+      const rh = 7;
+      rowFill(y, rh, i, vCols);
+      doc.setTextColor(...BLACK);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(v.plugin_name || '').substring(0, 25), vCols[0].x + 2, y + 5);
+      doc.text(String(v.plugin_version || ''), vCols[1].x + 2, y + 5);
+      doc.text(String(v.cve_id || '—').substring(0, 15), vCols[2].x + 2, y + 5);
+      const sev = String(v.severity || '').toUpperCase();
+      doc.setTextColor(...(sev === 'CRITICAL' || sev === 'HIGH' ? RED : ORANGE));
+      doc.setFont('helvetica', 'bold');
+      doc.text(sev, vCols[3].x + 2, y + 5);
+      doc.setTextColor(...BLACK);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(v.fixed_in || 'Unpatched'), vCols[4].x + 2, y + 5);
+      y += rh;
+    });
+    y += 4;
+    doc.setTextColor(...GRAY);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'oblique');
+    doc.text('Update these plugins immediately to protect your site.', M, y);
   } else {
-    vulnAlerts.forEach((v: any) => {
-      newPageIfNeeded(16);
-      doc.setFillColor(254, 242, 242);
-      doc.roundedRect(margin, y, colW, 14, 2, 2, 'F');
+    doc.setTextColor(...GREEN);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('No vulnerable plugins detected. ✓', M, y);
+  }
+  y += 10;
+
+  // Top Attacking IPs
+  doc.setTextColor(...DARK_TEAL);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Top Attacking IPs', M, y);
+  y += 6;
+
+  if (ips.length > 0) {
+    const iCols = [
+      { label: 'IP Address',    x: M,       w: 60 },
+      { label: 'Attack Count',  x: M + 60,  w: 35, align: 'center' },
+      { label: 'Attack Type',   x: M + 95,  w: 65 },
+    ];
+    drawTableHeaderRow(iCols, y, 8);
+    y += 8;
+    ips.forEach((ip: any, i: number) => {
+      rowFill(y, 7, i, iCols);
+      doc.setTextColor(...BLACK);
       doc.setFontSize(9);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(185, 28, 28);
-      doc.text(`${v.plugin_name || '—'} v${v.plugin_version || '—'}`, margin + 3, y + 6);
+      doc.text(String(ip.ip || ''), iCols[0].x + 3, y + 5);
       doc.setFont('helvetica', 'normal');
-      doc.setTextColor(120, 113, 108);
-      doc.setFontSize(8);
-      doc.text(`CVE: ${v.cve_id || '—'}  ·  Severity: ${v.severity || '—'}  ·  Fixed in: ${v.fixed_in || 'Unpatched'}`, margin + 3, y + 11);
-      doc.setTextColor(28, 25, 23);
-      y += 18;
+      doc.text(String(ip.count || 0), iCols[1].x + iCols[1].w / 2, y + 5, { align: 'center' });
+      doc.text(formatAttackType(ip.pattern_type), iCols[2].x + 3, y + 5);
+      y += 7;
     });
-  }
-  y += 4;
-
-  // ── FOOTER on each page ────────────────────────────────────────────────────
-  const totalPages = doc.getNumberOfPages();
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i);
-    doc.setFontSize(7);
-    doc.setTextColor(168, 162, 158);
+    y += 4;
+    doc.setTextColor(...GRAY);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'oblique');
+    doc.text('These IP addresses have been repeatedly trying to break into your site.', M, y);
+  } else {
+    doc.setTextColor(...GREEN);
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text('Confidential — WPShield Security Report by Cybernara', margin, 290);
-    doc.text(`Page ${i} of ${totalPages}`, pageW - margin - 20, 290);
+    doc.text('No suspicious IP activity detected. ✓', M, y);
+  }
+  y += 10;
+
+  // Recent File Changes
+  doc.setTextColor(...DARK_TEAL);
+  doc.setFontSize(13);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Recent File Changes', M, y);
+  y += 6;
+
+  if (files.length > 0) {
+    const fCols = [
+      { label: 'File Path',    x: M,       w: 85 },
+      { label: 'Change Type',  x: M + 85,  w: 25, align: 'center' },
+      { label: 'Date',         x: M + 110, w: 50 },
+    ];
+    drawTableHeaderRow(fCols, y, 8);
+    y += 8;
+    files.forEach((f: any, i: number) => {
+      let path = String(f.path || '');
+      if (path.length > 45) path = '...' + path.slice(-42);
+      const change = String(f.event || '').replace('file_', '').replace(/\b\w/g, (c: string) => c.toUpperCase());
+      rowFill(y, 7, i, fCols);
+      doc.setTextColor(...BLACK);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.text(path, fCols[0].x + 2, y + 5);
+      doc.text(change, fCols[1].x + fCols[1].w / 2, y + 5, { align: 'center' });
+      doc.text(formatDate(f.occurred_at), fCols[2].x + 2, y + 5);
+      y += 7;
+    });
+    y += 4;
+    doc.setTextColor(...GRAY);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'oblique');
+    doc.text('These files were modified on your site. Review if unexpected.', M, y);
+  } else {
+    doc.setTextColor(...GREEN);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text('No recent file modifications detected. ✓', M, y);
+  }
+
+  // ── PAGE 4: ACTION ITEMS ─────────────────────────────────────────────────
+  doc.addPage();
+  drawHeaderFooter(4);
+  y = HEADER_H + 8;
+
+  doc.setTextColor(...DARK_TEAL);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text('What You Need To Do', M, y);
+  y += 3;
+  doc.setDrawColor(...DARK_TEAL);
+  doc.setLineWidth(0.5);
+  doc.line(M, y, M + CW, y);
+  y += 5;
+  doc.setTextColor(...GRAY);
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'oblique');
+  doc.text('These are the security issues that need your attention, sorted by importance.', M, y);
+  y += 8;
+
+  if (failed.length > 0) {
+    const aCols = [
+      { label: 'Issue',      x: M,       w: 55 },
+      { label: 'Risk Level', x: M + 55,  w: 25, align: 'center' },
+      { label: 'What To Do', x: M + 80,  w: 80 },
+    ];
+    drawTableHeaderRow(aCols, y, 8);
+    y += 8;
+
+    failed.forEach((c: any, i: number) => {
+      const displayName = FAIL_NAMES[c.check_name] || c.check_name || '';
+      const priority    = String(c.priority || 'medium').toUpperCase();
+      const priColor: [number,number,number] =
+        priority === 'HIGH'   ? RED :
+        priority === 'MEDIUM' ? ORANGE : GREEN;
+      const rec = String(c.recommendation || '');
+      const recLines = doc.splitTextToSize(rec, aCols[2].w - 4);
+      const rh = Math.max(7, recLines.length * 4.5 + 3);
+
+      rowFill(y, rh, i, aCols);
+      doc.setTextColor(...BLACK);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      const nameLines = doc.splitTextToSize(displayName, aCols[0].w - 4);
+      doc.text(nameLines, aCols[0].x + 3, y + 5);
+      doc.setTextColor(...priColor);
+      doc.setFont('helvetica', 'bold');
+      doc.text(priority, aCols[1].x + aCols[1].w / 2, y + 5, { align: 'center' });
+      doc.setTextColor(...BLACK);
+      doc.setFont('helvetica', 'normal');
+      doc.text(recLines, aCols[2].x + 3, y + 5);
+      y += rh;
+    });
+  } else {
+    doc.setTextColor(...GREEN);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Great job! No action items at this time.', M, y);
   }
 
   return Buffer.from(doc.output('arraybuffer'));

@@ -19,9 +19,9 @@ export default function ClientAlertsPage() {
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
 
-  // Track whether we've already fetched for this company so navigation
-  // back to this page doesn't re-trigger an unnecessary load.
-  const fetchedForCompany = useRef<string | null>(null);
+  // Prevent double-fetch: track the last companyId we fetched for
+  // in a ref so it survives re-renders but resets on full page navigation.
+  const fetchedRef = useRef<string | null>(null);
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -29,30 +29,26 @@ export default function ClientAlertsPage() {
     console.log("[AlertsPage] useEffect trigger", { userLoading, profileId: profile?.id, companyId: profile?.company_id });
     let isMounted = true;
 
-    // Wait until we have a definitive answer — either profile loaded or
-    // loading finished with no profile. Don't bail just because userLoading
-    // is still true IF we already have a profile (covers fast navigation case).
-    const hasProfile = !!profile?.company_id;
-    const loadingFinished = !userLoading;
+    // If we already have a profile, proceed immediately — don't wait for
+    // userLoading to settle. This fixes the stuck spinner on client-side navigation
+    // where the UserProvider already has the profile but userLoading briefly
+    // flips back to true.
+    const companyId = profile?.company_id;
 
-    if (!hasProfile && !loadingFinished) {
-      console.log("[AlertsPage] Waiting for profile to load...");
-      return;
-    }
-
-    if (!profile || !profile.company_id) {
-      console.log("[AlertsPage] No profile/company after loading finished");
-      if (profile?.role === "admin") {
-        router.replace("/admin");
+    if (!companyId) {
+      if (!userLoading) {
+        // Loading finished but no company — show appropriate state
+        console.log("[AlertsPage] No companyId after loading finished");
+        if (profile?.role === "admin") router.replace("/admin");
+        if (isMounted) setAlertsLoading(false);
+      } else {
+        console.log("[AlertsPage] Waiting for profile to load...");
       }
-      if (isMounted) setAlertsLoading(false);
       return;
     }
 
-    const companyId = profile.company_id;
-
-    // Skip refetch if we already loaded for this company
-    if (fetchedForCompany.current === companyId) {
+    // Already fetched for this company in this component lifecycle — skip
+    if (fetchedRef.current === companyId) {
       console.log("[AlertsPage] Already fetched for company, skipping:", companyId);
       if (isMounted) setAlertsLoading(false);
       return;
@@ -61,11 +57,11 @@ export default function ClientAlertsPage() {
     async function loadAlerts() {
       console.log("[AlertsPage] Fetching alerts for company:", companyId);
       try {
-        const data = await getAlerts(supabase, { companyId });
+        const data = await getAlerts(supabase, { companyId: companyId! });
         console.log("[AlertsPage] Fetched data count:", data?.length);
         if (isMounted) {
           setAlerts(data);
-          fetchedForCompany.current = companyId;
+          fetchedRef.current = companyId!;
         }
       } catch (err) {
         console.error("[AlertsPage] Failed to load alerts:", err);
@@ -89,17 +85,12 @@ export default function ClientAlertsPage() {
         },
         (payload) => {
           if (!isMounted) return;
-          const newAlert = payload.new as Alert;
-          setAlerts((prev) => [newAlert, ...prev]);
+          setAlerts((prev) => [payload.new as Alert, ...prev]);
         }
       )
       .subscribe((status) => {
         if (!isMounted) return;
-        if (status === "SUBSCRIBED") {
-          setRealtimeConnected(true);
-        } else {
-          setRealtimeConnected(false);
-        }
+        setRealtimeConnected(status === "SUBSCRIBED");
       });
 
     return () => {
