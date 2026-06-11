@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import Link from "next/link";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { TimeCell } from "@/components/dashboard/TimeCell";

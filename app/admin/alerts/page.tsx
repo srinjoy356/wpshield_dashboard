@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { createClient } from "@/lib/supabase/server";
 import { getAlerts, getCompanyAlertSummaries } from "@/lib/queries/alerts";
 import { AdminAlertsContent } from "./components/AdminAlertsContent";

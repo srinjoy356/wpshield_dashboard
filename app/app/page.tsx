@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/queries/profile";
 import { getClientStats, getTimeSeriesStats, getSeverityStats } from "@/lib/queries/stats";
