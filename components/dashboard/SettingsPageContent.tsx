@@ -43,7 +43,7 @@ export function SettingsPageContent({ profile, company }: SettingsPageContentPro
         </div>
         
         {/* Tab Content Panel */}
-        <div className="flex-1 rounded-2xl border border-[var(--border)] bg-surface p-6 shadow-sm min-h-[400px]">
+        <div className="flex-1 rounded-2xl border border-[var(--border)] bg-premium-surface p-6 shadow-sm min-h-[400px]">
           <h3 className="text-lg font-semibold mb-6 border-b border-[var(--border)] pb-4">{activeTab}</h3>
           
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">

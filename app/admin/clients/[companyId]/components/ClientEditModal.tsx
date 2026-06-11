@@ -43,7 +43,7 @@ export function ClientEditModal({ company, open, onOpenChange }: ClientEditModal
       const res = await updateClientAction(company.company_id, formData);
 
       if (res.success) {
-        toast({ title: "Client updated successfully ✅" });
+        toast({ title: "Client updated successfully" });
       } else {
         toast({
           title: "Update failed",

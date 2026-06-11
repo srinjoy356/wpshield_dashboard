@@ -66,11 +66,23 @@ const FAIL_NAMES: Record<string, string> = {
 };
 
 function getMaturityBadge(score: number) {
-  if (score <= 40) return { text: "Critical Risk", color: "bg-red-50 text-red-700 border-red-200", icon: "🔴" };
-  if (score <= 60) return { text: "Needs Attention", color: "bg-orange-50 text-orange-700 border-orange-200", icon: "🟠" };
-  if (score <= 80) return { text: "Moderate", color: "bg-yellow-50 text-yellow-700 border-yellow-200", icon: "🟡" };
-  if (score <= 90) return { text: "Good", color: "bg-green-50 text-green-700 border-green-200", icon: "🟢" };
-  return { text: "Excellent", color: "bg-teal-50 text-teal-700 border-teal-200", icon: "✅" };
+  if (score <= 40) return { text: "Critical Risk", color: "bg-red-50 text-red-700 border-red-200", iconName: "critical" };
+  if (score <= 60) return { text: "Needs Attention", color: "bg-orange-50 text-orange-700 border-orange-200", iconName: "warning" };
+  if (score <= 80) return { text: "Moderate", color: "bg-yellow-50 text-yellow-700 border-yellow-200", iconName: "moderate" };
+  if (score <= 90) return { text: "Good", color: "bg-green-50 text-green-700 border-green-200", iconName: "good" };
+  return { text: "Excellent", color: "bg-teal-50 text-teal-700 border-teal-200", iconName: "check" };
+}
+
+function MaturityIcon({ name, className }: { name: string; className?: string }) {
+  const cls = cn("h-3.5 w-3.5 shrink-0", className);
+  switch (name) {
+    case "critical": return <XCircle className={cls} />;
+    case "warning":  return <ShieldAlert className={cls} />;
+    case "moderate": return <HelpCircle className={cls} />;
+    case "good":     return <CheckCircle2 className={cls} />;
+    case "check":    return <CheckCircle2 className={cls} />;
+    default:         return null;
+  }
 }
 
 export function HardeningContent({ companyId, initialResults, evidence }: HardeningContentProps) {
@@ -177,15 +189,15 @@ export function HardeningContent({ companyId, initialResults, evidence }: Harden
       case "https_enforced": {
         const siteUrl = evidence?.company?.site_url || "—";
         return isPass ? (
-          <p className="text-emerald-600 font-semibold">Site URL: {siteUrl} is secured with HTTPS ✅</p>
+          <p className="text-emerald-600 font-semibold">Site URL: {siteUrl} is secured with HTTPS</p>
         ) : (
-          <p className="text-red-600 font-semibold">Site URL: {siteUrl} does not use HTTPS ❌</p>
+          <p className="text-red-600 font-semibold">Site URL: {siteUrl} does not use HTTPS</p>
         );
       }
       case "no_critical_open_alerts": {
         const criticals = evidence?.criticalAlerts || [];
         return isPass ? (
-          <p className="text-emerald-600 font-semibold">0 critical alerts currently open ✅</p>
+          <p className="text-emerald-600 font-semibold">0 critical alerts currently open</p>
         ) : (
           <div className="space-y-2">
             <p className="text-red-600 font-bold">{criticals.length} critical alerts currently open — review immediately</p>
@@ -204,7 +216,7 @@ export function HardeningContent({ companyId, initialResults, evidence }: Harden
       case "no_high_open_alerts": {
         const highs = evidence?.highAlerts || [];
         return isPass ? (
-          <p className="text-emerald-600 font-semibold">High severity alerts are within acceptable limit ✅</p>
+          <p className="text-emerald-600 font-semibold">High severity alerts are within acceptable limit</p>
         ) : (
           <div className="space-y-2">
             <p className="text-orange-600 font-bold">{highs.length} high severity alerts currently open</p>
@@ -223,7 +235,7 @@ export function HardeningContent({ companyId, initialResults, evidence }: Harden
       case "no_vulnerable_plugins": {
         const vulns = evidence?.vulnAlerts || [];
         return isPass ? (
-          <p className="text-emerald-600 font-semibold">All plugins are clean — no known CVEs detected ✅</p>
+          <p className="text-emerald-600 font-semibold">All plugins are clean — no known CVEs detected</p>
         ) : (
           <div className="space-y-2 overflow-x-auto">
             <p className="text-red-600 font-bold">{vulns.length} vulnerabilities detected in active plugins</p>
@@ -282,9 +294,9 @@ export function HardeningContent({ companyId, initialResults, evidence }: Harden
           ? new Date(evidence.company.last_uptime_check).toLocaleString()
           : "never";
         return isPass ? (
-          <p className="text-emerald-600 font-semibold">Site responded in {responseMs}ms — last checked {lastCheck} ✅</p>
+          <p className="text-emerald-600 font-semibold">Site responded in {responseMs}ms — last checked {lastCheck}</p>
         ) : (
-          <p className="text-red-600 font-semibold">Site is not responding — last checked {lastCheck} ❌</p>
+          <p className="text-red-600 font-semibold">Site is not responding — last checked {lastCheck}</p>
         );
       }
       case "plugin_heartbeat_recent": {
@@ -292,15 +304,15 @@ export function HardeningContent({ companyId, initialResults, evidence }: Harden
           ? new Date(evidence.company.last_seen_at).toLocaleString()
           : "never";
         return isPass ? (
-          <p className="text-emerald-600 font-semibold">Last data received: {lastSeen} ✅</p>
+          <p className="text-emerald-600 font-semibold">Last data received: {lastSeen}</p>
         ) : (
-          <p className="text-red-600 font-semibold">No data received since {lastSeen} — plugin may be inactive ❌</p>
+          <p className="text-red-600 font-semibold">No data received since {lastSeen} — plugin may be inactive</p>
         );
       }
       case "no_file_modification_alerts": {
         const files = evidence?.fileAlerts || [];
         return isPass ? (
-          <p className="text-emerald-600 font-semibold">No file modifications detected in last 7 days ✅</p>
+          <p className="text-emerald-600 font-semibold">No file modifications detected in last 7 days</p>
         ) : (
           <div className="space-y-2">
             <p className="text-orange-600 font-bold">{files.length} file modifications detected in last 7 days</p>
@@ -329,7 +341,7 @@ export function HardeningContent({ companyId, initialResults, evidence }: Harden
       <PageHeader title="Security Hardening" subtitle={`${companyId} · Vulnerability Audit`} />
 
       {/* Hero Scoreboard card with horizontal split inside */}
-      <div className="rounded-2xl border border-[var(--border)] bg-surface p-8 shadow-sm relative overflow-hidden">
+      <div className="rounded-2xl border border-[var(--border)] bg-premium-surface p-8 shadow-sm relative overflow-hidden">
         {/* Subtle decorative grid background */}
         <div className="absolute inset-0 opacity-[0.02] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-teal-500 to-transparent pointer-events-none" />
 
@@ -347,7 +359,7 @@ export function HardeningContent({ companyId, initialResults, evidence }: Harden
                   badge.color
                 )}
               >
-                <span className="text-base">{badge.icon}</span>
+                <MaturityIcon name={badge.iconName} />
                 {badge.text}
               </span>
               <h2 className="text-4xl font-extrabold text-[var(--foreground)] tracking-tight mt-2">

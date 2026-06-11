@@ -73,19 +73,19 @@ export function OnboardForm({ pending }: OnboardFormProps) {
 
           if (!inviteRes.ok) {
             toast({
-              title: "Client created, but invite failed ⚠️",
+              title: "Client created, but invite failed",
               description: "Please try resending the invite from the dashboard.",
               variant: "destructive",
             });
           } else {
             toast({
-              title: "Client onboarded & invite sent ✅",
+              title: "Client onboarded & invite sent",
               description: `Invitation email sent to ${email}.`,
             });
           }
         } catch (err) {
           toast({
-            title: "Client created, but invite failed ⚠️",
+            title: "Client created, but invite failed",
             description: "Connection error while sending invite.",
             variant: "destructive",
           });

@@ -52,7 +52,7 @@ export function ResetPasswordModal({
       const res = await resetClientPasswordAction(company.company_id, password);
 
       if (res.success) {
-        toast({ title: "Password updated successfully ✅" });
+        toast({ title: "Password updated successfully" });
         setPassword("");
       } else {
         toast({

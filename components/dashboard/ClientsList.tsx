@@ -108,7 +108,7 @@ export function ClientsList({ initialCompanies }: ClientsListProps) {
           const data = await res.json();
           toast({ title: "Failed to resend invite", description: data.error || "Unknown error", variant: "destructive" });
         } else {
-          toast({ title: "Invite resent successfully ✅" });
+          toast({ title: "Invite resent successfully" });
         }
       } catch (err) {
         toast({ title: "Connection error", description: "Failed to reach invitation API", variant: "destructive" });
@@ -130,7 +130,7 @@ export function ClientsList({ initialCompanies }: ClientsListProps) {
         toast({ title: "Action failed", description: res.error, variant: "destructive" });
       } else {
         toast({ 
-          title: "Password reset successful ✅", 
+          title: "Password reset successful", 
           description: `New password for ${company.display_name} is now active.` 
         });
       }

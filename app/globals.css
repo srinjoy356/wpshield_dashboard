@@ -40,3 +40,139 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Premium surface — used on hardening, firewall, settings content panels */
+.bg-premium-surface {
+  background-color: #F7F7F6;
+  background-image:
+    linear-gradient(rgba(28, 25, 23, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(28, 25, 23, 0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Subtle dot grid for secondary panels */
+.bg-dot-grid {
+  background-color: var(--surface);
+  background-image: radial-gradient(circle, rgba(28, 25, 23, 0.08) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+
+/* ═══════════════════════════════════════════════
+   PREMIUM SURFACE UTILITIES
+   ═══════════════════════════════════════════════ */
+
+/* Warm off-white with subtle grid — used on content panels */
+.bg-premium-surface {
+  background-color: #F7F6F5;
+  background-image:
+    linear-gradient(rgba(28, 25, 23, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(28, 25, 23, 0.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Dot grid for secondary panels */
+.bg-dot-grid {
+  background-color: var(--surface);
+  background-image: radial-gradient(circle, rgba(28, 25, 23, 0.07) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* ═══════════════════════════════════════════════
+   PREMIUM CARD ELEVATION
+   ═══════════════════════════════════════════════ */
+
+.card-premium {
+  background: #FFFFFF;
+  border: 1px solid #E7E5E4;
+  border-radius: 16px;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.04),
+    0 4px 12px rgba(0,0,0,0.04),
+    0 0 0 1px rgba(255,255,255,0.8) inset;
+}
+
+.card-premium-hover {
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.card-premium-hover:hover {
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.06),
+    0 8px 24px rgba(0,0,0,0.08);
+  transform: translateY(-1px);
+}
+
+/* ═══════════════════════════════════════════════
+   SIDEBAR REFINEMENT
+   ═══════════════════════════════════════════════ */
+
+/* Active nav item — left border accent */
+.nav-active {
+  border-left: 2px solid var(--foreground);
+  background-color: var(--surface-subtle);
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+/* ═══════════════════════════════════════════════
+   TYPOGRAPHY REFINEMENT
+   ═══════════════════════════════════════════════ */
+
+/* Ensure Inter is used everywhere */
+body, button, input, select, textarea {
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* Section labels */
+.label-uppercase {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ═══════════════════════════════════════════════
+   SCROLLBAR REFINEMENT
+   ═══════════════════════════════════════════════ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #D5D3D1;
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #A8A29E;
+}
+
+/* ═══════════════════════════════════════════════
+   FOCUS RING — PREMIUM
+   ═══════════════════════════════════════════════ */
+
+*:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ═══════════════════════════════════════════════
+   TABLE REFINEMENT
+   ═══════════════════════════════════════════════ */
+
+.table-premium thead tr {
+  background-color: var(--surface-subtle);
+  border-bottom: 1px solid var(--border);
+}
+.table-premium tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.1s ease;
+}
+.table-premium tbody tr:hover {
+  background-color: var(--surface-subtle);
+}
