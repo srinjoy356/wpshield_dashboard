@@ -10,6 +10,9 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/queries/profile";
 import { getReportData } from "@/lib/reportData";
+import type ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
+import type ExcelJS from "exceljs";
 
 export const dynamic = "force-dynamic";
 
@@ -278,7 +281,7 @@ export async function GET(request: Request) {
     [1, 2, 3].forEach((c, i) => { ws5.getColumn(c).width = [35, 15, 60][i]; });
 
     // ── Output ────────────────────────────────────────────────────────────
-    const buffer = await wb.xlsx.writeBuffer() as Buffer;
+    const buffer = await wb.xlsx.writeBuffer() as unknown as Buffer;
     const safeCompanyName = (company.display_name || companyId).replace(/[^a-zA-Z0-9-_]/g, "_");
     const dateStr = new Date().toISOString().split("T")[0];
     const filename = `security-data-${safeCompanyName}-${dateStr}.xlsx`;
