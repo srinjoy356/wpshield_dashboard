@@ -12,7 +12,7 @@ const EventPayloadSchema = z.object({
   pattern_type: z.string().optional(),
   ip: z.string().optional(),
   occurred_at: z.string().optional(),
-  data: z.record(z.any()).optional()
+  data: z.record(z.string(), z.any()).optional()
 }).passthrough();
 
 export async function POST(request: Request) {
