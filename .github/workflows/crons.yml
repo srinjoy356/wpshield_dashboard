@@ -1,0 +1,34 @@
+name: WPShield Cron Jobs
+
+on:
+  schedule:
+    - cron: '0 * * * *'    # every hour — runs all crons
+    - cron: '*/5 * * * *'  # every 5 min — uptime check only
+  workflow_dispatch:        # allows manual trigger from GitHub UI
+
+jobs:
+  run-crons:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run all crons (hourly)
+        if: github.event.schedule == '0 * * * *' || github.event_name == 'workflow_dispatch'
+        env:
+          BASE_URL: ${{ secrets.RENDER_APP_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -s -o /dev/null -w "threat-intel: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/threat-intel"
+          curl -s -o /dev/null -w "vuln-check: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/vuln-check"
+          curl -s -o /dev/null -w "uptime-check: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/uptime-check"
+          curl -s -o /dev/null -w "hardening-audit: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/hardening-audit"
+          curl -s -o /dev/null -w "safe-browsing: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/safe-browsing"
+          curl -s -o /dev/null -w "reconciliation: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/reconciliation"
+          curl -s -o /dev/null -w "scheduled-reports: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/scheduled-reports"
+          curl -s -o /dev/null -w "send-reports: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/send-reports"
+
+      - name: Uptime check (every 5 min)
+        if: github.event.schedule == '*/5 * * * *'
+        env:
+          BASE_URL: ${{ secrets.RENDER_APP_URL }}
+          SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -s -o /dev/null -w "uptime-check: %{http_code}\n" -H "x-cron-secret: $SECRET" "$BASE_URL/api/cron/uptime-check"
