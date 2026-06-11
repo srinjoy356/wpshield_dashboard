@@ -43,6 +43,7 @@ interface NavItem {
 const clientNav: NavItem[] = [
   { label: "Overview", href: "/app", icon: LayoutDashboard },
   { label: "Attacks", href: "/app/attacks", icon: Swords },
+  { label: "Logins", href: "/app/logins", icon: KeyRound },
   { label: "File Integrity", href: "/app/files", icon: FileSearch },
   { label: "Activity",       href: "/app/activity",  icon: Activity }, //added by srinjoy
   { label: "Inventory", href: "/app/inventory", icon: Package },
@@ -331,11 +332,7 @@ export default function ClientLayout({
                 </span>
               )}
             </button>
-            <Avatar className="h-8 w-8 cursor-pointer">
-              <AvatarFallback className="bg-[var(--surface-subtle)] text-xs font-medium">
-                {getInitials(profile?.display_name, user?.email)}
-              </AvatarFallback>
-            </Avatar>
+
           </div>
         </header>
 

@@ -11,7 +11,7 @@ export function Sparkline({ data }: SparklineProps) {
 
   return (
     <div className="mt-4 h-10">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0}>
         <LineChart data={data}>
           <Line
             type="monotone"

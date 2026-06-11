@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/lib/auth/use-user";
 import { getAlerts } from "@/lib/queries/alerts";
@@ -19,19 +19,29 @@ export default function ClientAlertsPage() {
   const [alertsLoading, setAlertsLoading] = useState(true);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
 
+  // Track whether we've already fetched for this company so navigation
+  // back to this page doesn't re-trigger an unnecessary load.
+  const fetchedForCompany = useRef<string | null>(null);
+
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     console.log("[AlertsPage] useEffect trigger", { userLoading, profileId: profile?.id, companyId: profile?.company_id });
     let isMounted = true;
 
-    if (userLoading) {
-      console.log("[AlertsPage] Returning early because userLoading is true");
+    // Wait until we have a definitive answer — either profile loaded or
+    // loading finished with no profile. Don't bail just because userLoading
+    // is still true IF we already have a profile (covers fast navigation case).
+    const hasProfile = !!profile?.company_id;
+    const loadingFinished = !userLoading;
+
+    if (!hasProfile && !loadingFinished) {
+      console.log("[AlertsPage] Waiting for profile to load...");
       return;
     }
 
     if (!profile || !profile.company_id) {
-      console.log("[AlertsPage] Returning early due to missing profile/company", { profile });
+      console.log("[AlertsPage] No profile/company after loading finished");
       if (profile?.role === "admin") {
         router.replace("/admin");
       }
@@ -41,12 +51,22 @@ export default function ClientAlertsPage() {
 
     const companyId = profile.company_id;
 
+    // Skip refetch if we already loaded for this company
+    if (fetchedForCompany.current === companyId) {
+      console.log("[AlertsPage] Already fetched for company, skipping:", companyId);
+      if (isMounted) setAlertsLoading(false);
+      return;
+    }
+
     async function loadAlerts() {
       console.log("[AlertsPage] Fetching alerts for company:", companyId);
       try {
         const data = await getAlerts(supabase, { companyId });
         console.log("[AlertsPage] Fetched data count:", data?.length);
-        if (isMounted) setAlerts(data);
+        if (isMounted) {
+          setAlerts(data);
+          fetchedForCompany.current = companyId;
+        }
       } catch (err) {
         console.error("[AlertsPage] Failed to load alerts:", err);
       } finally {

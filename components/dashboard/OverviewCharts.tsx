@@ -35,7 +35,7 @@ export function OverviewCharts({ timeData, severityData, totalSeverity }: Overvi
           {isTimeDataEmpty ? (
             <p className="text-sm text-[var(--muted)]">Gathering data — this chart populates as events arrive</p>
           ) : (
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0}>
               <LineChart data={timeData}>
                 <XAxis
                   dataKey="date"
