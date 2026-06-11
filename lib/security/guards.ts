@@ -79,7 +79,7 @@ export async function requireAdmin(supabase: SupabaseClient) {
 
 export async function requireCustomerAccess(supabase: SupabaseClient, companyId: string) {
   const userCheck = await requireUser(supabase);
-  if (!userCheck.allowed) return userCheck;
+  if (!userCheck.allowed || !userCheck.user) return userCheck;
 
   const { allowed, response } = await verifyCompanyAccess(supabase, userCheck.user.id, companyId);
   if (!allowed) {
@@ -99,7 +99,7 @@ export function validateJson<T>(data: any, schema: z.ZodSchema<T>): { success: t
       success: false, 
       response: NextResponse.json({ 
         error: 'Validation Error', 
-        details: result.error.errors 
+        details: result.error.issues 
       }, { status: 400 }) 
     };
   }

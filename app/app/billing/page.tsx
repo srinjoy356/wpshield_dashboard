@@ -30,7 +30,7 @@ export default async function AppBillingPage() {
 
     if (subData) {
       subscription = subData;
-      plan = subData.plan;
+      plan = Array.isArray(subData.plan) ? subData.plan[0] : subData.plan;
     }
   }
 
