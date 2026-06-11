@@ -1,0 +1,26 @@
+-- ====================================================================
+-- WPShield — Initial Super Admin Setup
+-- ====================================================================
+-- 
+-- STEP 1 (do this in Supabase Dashboard, NOT in this SQL):
+--   1. Go to Authentication → Users → "Add user" → "Create new user"
+--   2. Email: admin@wpshield.com
+--   3. Password: (choose any strong password — you'll use this to log in)
+--   4. Auto Confirm User: YES (toggle on)
+--   5. Click Create user
+--   6. Copy the new user's UUID from the users list
+--
+-- STEP 2 (run this SQL block, replacing <PASTE_UUID_HERE> with the 
+-- copied UUID):
+--
+-- INSERT INTO public.user_profiles (id, role, company_id, display_name)
+-- VALUES (
+--   '<PASTE_UUID_HERE>',
+--   'admin',
+--   NULL,
+--   'Super Admin'
+-- );
+--
+-- After running this, log into the dashboard at /login with 
+-- admin@wpshield.com and your chosen password. You should land on /admin.
+-- ====================================================================

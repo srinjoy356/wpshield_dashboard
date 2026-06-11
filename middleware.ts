@@ -1,0 +1,140 @@
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return request.cookies.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          request.cookies.set({
+            name,
+            value,
+            ...options,
+          });
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          });
+        },
+        remove(name: string, options: CookieOptions) {
+          request.cookies.set({
+            name,
+            value: "",
+            ...options,
+          });
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          });
+          response.cookies.set({
+            name,
+            value: "",
+            ...options,
+          });
+        },
+      },
+    }
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const url = new URL(request.url);
+  const path = url.pathname;
+
+  // 1. Handle Public/Asset paths early
+  if (!path || path === "/login") {
+    if (user) {
+      // Redirect authenticated users away from login, UNLESS they are trying to see an error
+      if (url.searchParams.has('error')) return response;
+      
+      const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single();
+      if (profile?.role === "admin" || profile?.role === "super_admin") {
+        return NextResponse.redirect(new URL("/admin", request.url));
+      }
+      return NextResponse.redirect(new URL("/app", request.url));
+    }
+    return response;
+  }
+
+  // 2. Redirect root to appropriate dashboard
+  if (path === "/") {
+    if (!user) return NextResponse.redirect(new URL("/login", request.url));
+    const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single();
+    if (profile?.role === "admin" || profile?.role === "super_admin") {
+      return NextResponse.redirect(new URL("/admin", request.url));
+    }
+    return NextResponse.redirect(new URL("/app", request.url));
+  }
+
+  // 3. Protected Routes
+  if (path.startsWith("/admin") || path.startsWith("/app")) {
+    if (!user) return NextResponse.redirect(new URL("/login", request.url));
+
+    // 2FA Check
+    const has2fa = request.cookies.get("wpshield_2fa_verified");
+    if (!has2fa || has2fa.value !== "true") {
+      return NextResponse.redirect(new URL("/2fa-verify", request.url));
+    }
+
+    // Consolidate profile and company lookup for /app
+    if (path.startsWith("/app")) {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("role, company_id, companies(status)")
+        .eq("id", user.id)
+        .single();
+        
+      if (!profile || profile.role !== "client") {
+        return NextResponse.redirect(new URL("/login?error=unauthorized", request.url));
+      }
+
+      // @ts-ignore - Supabase nested join
+      if (profile.companies?.status === "suspended") {
+        await supabase.auth.signOut();
+        return NextResponse.redirect(new URL("/login?error=suspended", request.url));
+      }
+    } else {
+      // Admin route
+      const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single();
+      if (profile?.role !== "admin" && profile?.role !== "super_admin") {
+        return NextResponse.redirect(new URL("/login?error=unauthorized", request.url));
+      }
+    }
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: [
+    /*
+     * Match all request paths except for the ones starting with:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - api (API routes)
+     * - logos (brand logos)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|api|logos).*)",
+  ],
+};

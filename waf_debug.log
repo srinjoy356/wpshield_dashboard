@@ -1,0 +1,13 @@
+[WAF Fatal Error] waf_create: invalid WAF config from string: unknown directive "undefined"
+[WAF Fatal Error] transaction.processRequestURL is not a function
+[WAF Fatal Error] transaction.isInterrupted is not a function
+[WAF Evaluation] IP=203.0.113.47 isInterrupted=false bodyLength=83
+[WAF Fatal Error] transaction.processResponseHeaders is not a function
+[WAF Evaluation] IP=203.0.113.48 isInterrupted=false bodyLength=83
+[WAF Fatal Error] transaction.free is not a function
+[WAF Evaluation] IP=203.0.113.49 isInterrupted=false bodyLength=83
+[WAF Evaluation] IP=203.0.113.50 bundle=false isInterrupted=false rules=2
+[WAF Evaluation] IP=203.0.113.51 bundle=false isInterrupted=false rules=2
+[WAF Hit] Rule 10003 matched. Attempting ban for 203.0.113.51
+[WAF Inserting Ban]
+[WAF Fatal Error] fs is not defined
