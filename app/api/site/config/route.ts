@@ -64,6 +64,7 @@ export async function GET(request: Request) {
       blocked_countries:   blockedCountries,
       maintenance_mode:    company?.maintenance_mode    && isPremium,
       away_mode_schedule:  company?.away_mode_schedule  && isPremium ? company.away_mode_schedule : null,
+      footer_attribution:  company?.footer_attribution  ?? true,
       is_premium:          isPremium,
     };
 
