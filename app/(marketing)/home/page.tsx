@@ -63,10 +63,11 @@ function FloatingShield({ scrollY }: { scrollY: number }) {
       height: 520,
       opacity: 0.06,
       pointerEvents: "none",
-      zIndex: 0,
+      zIndex: 50,
       transform: `translateY(calc(-50% + ${floatY}px)) rotate(${rotate}deg)`,
       transition: "transform 0.08s linear",
       willChange: "transform",
+      mixBlendMode: "multiply" as const,
     }}>
       <svg viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
         <path d="M50,5 L95,22 L95,58 C95,82 50,98 50,98 C50,98 5,82 5,58 L5,22 Z" stroke={C.navy} strokeWidth="1.5"/>
@@ -241,7 +242,7 @@ export default function LandingPage() {
 
       {/* ── HERO ── */}
       <section style={{ minHeight: "100vh", display: "flex", alignItems: "center", padding: "120px 6% 80px", position: "relative", overflow: "hidden", background: `radial-gradient(at 0% 0%, rgba(184,245,104,0.15) 0, transparent 50%), radial-gradient(at 100% 0%, rgba(55,85,195,0.05) 0, transparent 50%), ${C.bg}` }}>
-        <div className="hgrid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center", maxWidth: 1240, margin: "0 auto", width: "100%", position: "relative", zIndex: 1 }}>
+        <div className="hgrid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, alignItems: "center", maxWidth: 1240, margin: "0 auto", width: "100%" }}>
           <div>
             <Reveal>
               <div style={{ display: "inline-flex", alignItems: "center", gap: 8, background: "rgba(141,198,63,0.12)", border: "1px solid rgba(141,198,63,0.3)", borderRadius: 100, padding: "6px 14px", fontSize: 12, fontWeight: 600, fontFamily: "'Plus Jakarta Sans',sans-serif", color: "#304f00", letterSpacing: "0.5px", marginBottom: 24 }}>
@@ -290,7 +291,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── WHY ── */}
-      <section style={{ padding: "96px 6%", background: C.white, position: "relative", zIndex: 1 }}>
+      <section style={{ padding: "96px 6%", background: C.white }}>
         <div style={{ maxWidth: 1240, margin: "0 auto" }}>
           <Reveal><p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "2.5px", textTransform: "uppercase", color: C.navy, marginBottom: 14 }}>The Threat Reality</p></Reveal>
           <Reveal delay={60}><h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: "clamp(28px,3vw,42px)", fontWeight: 800, lineHeight: 1.12, letterSpacing: "-1px", marginBottom: 16, color: C.text }}>Your WordPress Site Is<br/>Constantly Being Targeted</h2></Reveal>
@@ -327,7 +328,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FEATURES ── */}
-      <section id="features" style={{ padding: "96px 6%", background: C.bgSurface, position: "relative", zIndex: 1 }}>
+      <section id="features" style={{ padding: "96px 6%", background: C.bgSurface }}>
         <div style={{ maxWidth: 1240, margin: "0 auto" }}>
           <Reveal><p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "2.5px", textTransform: "uppercase", color: C.navy, marginBottom: 14 }}>Full Protection Suite</p></Reveal>
           <Reveal delay={60}><h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: "clamp(28px,3vw,42px)", fontWeight: 800, lineHeight: 1.12, letterSpacing: "-1px", marginBottom: 56, color: C.text }}>Engineered for Absolute Defense</h2></Reveal>
@@ -355,7 +356,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── STATS (dark band) ── */}
-      <section style={{ padding: "88px 6%", background: C.navy, position: "relative", zIndex: 1 }}>
+      <section style={{ padding: "88px 6%", background: C.navy }}>
         <div style={{ maxWidth: 1240, margin: "0 auto" }}>
           <Reveal><div style={{ textAlign: "center", marginBottom: 48 }}>
             <p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "2.5px", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", marginBottom: 12 }}>Global Protection Stats</p>
@@ -371,7 +372,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── HOW IT WORKS ── */}
-      <section id="how-it-works" style={{ padding: "96px 6%", background: C.white, position: "relative", zIndex: 1 }}>
+      <section id="how-it-works" style={{ padding: "96px 6%", background: C.white }}>
         <div style={{ maxWidth: 1240, margin: "0 auto", textAlign: "center" }}>
           <Reveal><p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "2.5px", textTransform: "uppercase", color: C.navy, marginBottom: 14 }}>Simple Setup</p></Reveal>
           <Reveal delay={60}><h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: "clamp(26px,3vw,42px)", fontWeight: 800, lineHeight: 1.12, letterSpacing: "-1px", marginBottom: 64, color: C.text }}>Simple Setup. Continuous Protection.</h2></Reveal>
@@ -380,7 +381,7 @@ export default function LandingPage() {
             {[["1","Install WP Shielder","Activate the plugin from your WordPress dashboard and enter your license key. Under 2 minutes."],["2","Configure Protection","Enable monitoring, scanning, geo blocking, and security modes from the cloud dashboard."],["3","Stay Protected","WP Shielder watches your site 24/7 and alerts you the moment anything suspicious is detected."]].map(([n,t,d], i) => (
               <Reveal key={n as string} delay={i * 150}>
                 <div style={{ textAlign: "center", padding: "0 24px" }}>
-                  <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.bg, border: `2px solid ${C.navy}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 800, fontSize: 18, color: C.navy, position: "relative", zIndex: 2 }}>{n}</div>
+                  <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.bg, border: `2px solid ${C.navy}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 800, fontSize: 18, color: C.navy }}>{n}</div>
                   <h3 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 10, color: C.text }}>{t as string}</h3>
                   <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.7, margin: 0 }}>{d as string}</p>
                 </div>
@@ -391,7 +392,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── TRUST ── */}
-      <section style={{ padding: "96px 6%", background: C.bgSurface, position: "relative", zIndex: 1 }}>
+      <section style={{ padding: "96px 6%", background: C.bgSurface }}>
         <div style={{ maxWidth: 1240, margin: "0 auto" }}>
           <Reveal><div style={{ textAlign: "center", marginBottom: 40 }}>
             <p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "2.5px", textTransform: "uppercase", color: C.navy, marginBottom: 14 }}>Trusted Protection</p>
@@ -421,7 +422,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── PRICING ── */}
-      <section id="pricing" style={{ padding: "96px 6%", background: C.bg, position: "relative", zIndex: 1 }}>
+      <section id="pricing" style={{ padding: "96px 6%", background: C.bg }}>
         <div style={{ maxWidth: 1240, margin: "0 auto", textAlign: "center" }}>
           <Reveal><p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "2.5px", textTransform: "uppercase", color: C.navy, marginBottom: 14 }}>Simple Pricing</p></Reveal>
           <Reveal delay={60}><h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: "clamp(26px,3vw,42px)", fontWeight: 800, lineHeight: 1.12, letterSpacing: "-1px", marginBottom: 16, color: C.text }}>One Plan. Full Protection.</h2></Reveal>
@@ -455,7 +456,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FINAL CTA ── */}
-      <section style={{ padding: "100px 6%", background: C.navy, textAlign: "center", position: "relative", zIndex: 1 }}>
+      <section style={{ padding: "100px 6%", background: C.navy, textAlign: "center" }}>
         <div style={{ maxWidth: 700, margin: "0 auto" }}>
           <Reveal><h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: "clamp(28px,4vw,48px)", fontWeight: 800, lineHeight: 1.1, letterSpacing: "-1px", color: "#fff", marginBottom: 16 }}>Secure Your WordPress<br/>Website Today</h2></Reveal>
           <Reveal delay={80}><p style={{ fontSize: 17, color: "rgba(255,255,255,0.65)", lineHeight: 1.75, marginBottom: 36 }}>Stop attacks, monitor changes, and protect your WordPress installation. Setup takes under 2 minutes.</p></Reveal>
@@ -477,7 +478,7 @@ export default function LandingPage() {
       </section>
 
       {/* ── FOOTER ── */}
-      <footer style={{ background: C.bgSurface, borderTop: `1px solid ${C.borderSub}`, padding: "36px 6%", position: "relative", zIndex: 1 }}>
+      <footer style={{ background: C.bgSurface, borderTop: `1px solid ${C.borderSub}`, padding: "36px 6%" }}>
         <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 20 }}>
           <ShieldLogo size={36}/>
           <div style={{ display: "flex", gap: 24 }}>
