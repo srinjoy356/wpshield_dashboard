@@ -61,12 +61,13 @@ export async function middleware(request: NextRequest) {
   const url = new URL(request.url);
   const path = url.pathname;
 
-  // 1. Handle Public/Asset paths early
-  if (!path || path === "/login") {
-    if (user) {
-      // Redirect authenticated users away from login, UNLESS they are trying to see an error
+  // 1. Handle Public/Asset paths early — /home is the public landing page
+  const publicPaths = ["/login", "/home"];
+  const isPublic = publicPaths.some(p => path === p || path.startsWith(p + "/"));
+
+  if (!path || isPublic) {
+    if (user && path === "/login") {
       if (url.searchParams.has('error')) return response;
-      
       const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single();
       if (profile?.role === "admin" || profile?.role === "super_admin") {
         return NextResponse.redirect(new URL("/admin", request.url));
@@ -76,14 +77,9 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // 2. Redirect root to appropriate dashboard
+  // 2. Redirect root / to landing page
   if (path === "/") {
-    if (!user) return NextResponse.redirect(new URL("/login", request.url));
-    const { data: profile } = await supabase.from("user_profiles").select("role").eq("id", user.id).single();
-    if (profile?.role === "admin" || profile?.role === "super_admin") {
-      return NextResponse.redirect(new URL("/admin", request.url));
-    }
-    return NextResponse.redirect(new URL("/app", request.url));
+    return NextResponse.redirect(new URL("/home", request.url));
   }
 
   // 3. Protected Routes
