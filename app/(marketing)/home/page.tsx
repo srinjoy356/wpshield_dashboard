@@ -90,6 +90,7 @@ function FloatingShield({ scrollY }: { scrollY: number }) {
     </>
   );
 }
+
 // ─── Scroll reveal ────────────────────────────────────────────────────────
 function useReveal(threshold = 0.12) {
   const ref = useRef<HTMLDivElement>(null);
@@ -103,11 +104,11 @@ function useReveal(threshold = 0.12) {
   return { ref, visible };
 }
 
-function Reveal({ children, delay = 0, direction = "up", className = "" }: { children: React.ReactNode; delay?: number; direction?: "up"|"left"|"right"; className?: string }) {
+function Reveal({ children, delay = 0, direction = "up", className = "", style = {} }: { children: React.ReactNode; delay?: number; direction?: "up"|"left"|"right"; className?: string; style?: React.CSSProperties }) {
   const { ref, visible } = useReveal();
   const from = direction === "left" ? "translateX(-28px)" : direction === "right" ? "translateX(28px)" : "translateY(24px)";
   return (
-    <div ref={ref} className={className} style={{ opacity: visible ? 1 : 0, transform: visible ? "none" : from, transition: `opacity 0.65s ease ${delay}ms, transform 0.65s ease ${delay}ms` }}>
+    <div ref={ref} className={className} style={{ ...style, opacity: visible ? 1 : 0, transform: visible ? "none" : from, transition: `opacity 0.65s ease ${delay}ms, transform 0.65s ease ${delay}ms` }}>
       {children}
     </div>
   );
@@ -309,22 +310,26 @@ export default function LandingPage() {
         <div style={{ maxWidth: 1240, margin: "0 auto" }}>
           <Reveal><p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "2.5px", textTransform: "uppercase", color: C.navy, marginBottom: 14 }}>The Threat Reality</p></Reveal>
           <Reveal delay={60}><h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: "clamp(28px,3vw,42px)", fontWeight: 800, lineHeight: 1.12, letterSpacing: "-1px", marginBottom: 16, color: C.text }}>Your WordPress Site Is<br/>Constantly Being Targeted</h2></Reveal>
-          <div className="wgrid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, marginTop: 48 }}>
+          
+          {/* Changed alignItems to "stretch" to equalize heights, added gap tweaks */}
+          <div className="wgrid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 64, marginTop: 48, alignItems: "stretch" }}>
             <Reveal direction="left">
-              <p style={{ fontSize: 16, color: C.textMid, lineHeight: 1.8, marginBottom: 24 }}>Bots, malware, brute-force attempts, and vulnerable plugins attack WordPress sites every day. Even small websites are automated targets.</p>
-              <div style={{ background: C.bgSurface, borderLeft: `4px solid ${C.lime}`, borderRadius: "0 8px 8px 0", padding: "20px 24px", marginBottom: 24 }}>
-                <p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontStyle: "italic", color: C.navy, fontWeight: 600 }}>"WP Shielder is antifragile: every attack makes it stronger."</p>
+              <p style={{ fontSize: 16, color: C.textMid, lineHeight: 1.8, marginBottom: 32 }}>Bots, malware, brute-force attempts, and vulnerable plugins attack WordPress sites every day. Even small websites are automated targets.</p>
+              
+              <div style={{ background: C.bgSurface, borderLeft: `4px solid ${C.lime}`, borderRadius: "0 8px 8px 0", padding: "20px 24px", marginBottom: 32 }}>
+                <p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontStyle: "italic", color: C.navy, fontWeight: 600, margin: 0 }}>"WP Shielder is antifragile: every attack makes it stronger."</p>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 {[
-                  { icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.18-5.14"/></svg>, text: "Website downtime & revenue loss" },
-                  { icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>, text: "SEO blacklisting by Google" },
-                  { icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>, text: "Stolen customer data & credentials" },
-                  { icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>, text: "Malware injections & backdoors" },
-                  { icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M3.27 9h17.46"/></svg>, text: "Hosting account suspension" },
+                  { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.18-5.14"/></svg>, text: "Website downtime & revenue loss" },
+                  { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>, text: "SEO blacklisting by Google" },
+                  { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>, text: "Stolen customer data & credentials" },
+                  { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>, text: "Malware injections & backdoors" },
+                  { icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M3.27 9h17.46"/></svg>, text: "Hosting account suspension" },
                 ].map(item => (
-                  <div key={item.text} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: C.textMid }}>
-                    <div style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(186,26,26,0.08)", border: "1px solid rgba(186,26,26,0.18)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div key={item.text} style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 15, color: C.textMid }}>
+                    <div style={{ width: 24, height: 24, borderRadius: 6, background: "rgba(186,26,26,0.08)", border: "1px solid rgba(186,26,26,0.18)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {item.icon}
                     </div>
                     {item.text}
@@ -332,20 +337,27 @@ export default function LandingPage() {
                 ))}
               </div>
             </Reveal>
-            <Reveal direction="right">
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {[["01","24/7 Monitoring","Continuously monitors activity, logins, files, and suspicious behaviour around the clock."],["02","Instant Threat Detection","Detect SQLi, XSS, malware, and unauthorized file changes the moment they happen."],["03","Proactive Blocking","Automatically block malicious IPs, scanners, and suspicious traffic before damage is done."]].map(([n,t,d]) => (
-                  <div key={n as string} style={{ background: C.bg, border: `1px solid ${C.borderSub}`, borderRadius: 12, padding: "20px 22px", transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s", cursor: "default" }}
+
+            {/* Changed flex structure so the 3 cards fill out the vertical space to exactly match the left side */}
+            <Reveal direction="right" style={{ height: "100%" }}>
+              <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 24 }}>
+                {[
+                  ["01","24/7 Monitoring","Continuously monitors activity, logins, files, and suspicious behaviour around the clock."],
+                  ["02","Instant Threat Detection","Detect SQLi, XSS, malware, and unauthorized file changes the moment they happen."],
+                  ["03","Proactive Blocking","Automatically block malicious IPs, scanners, and suspicious traffic before damage is done."]
+                ].map(([n,t,d]) => (
+                  <div key={n as string} style={{ background: C.bg, border: `1px solid ${C.borderSub}`, borderRadius: 12, padding: "24px", transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s", cursor: "default", flex: 1, display: "flex", flexDirection: "column", justifyContent: "center" }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = C.navy; (e.currentTarget as HTMLElement).style.transform = "translateX(4px)"; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(0,40,142,0.08)"; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = C.borderSub; (e.currentTarget as HTMLElement).style.transform = "none"; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: C.navy, letterSpacing: 2, marginBottom: 6, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{n}</div>
-                    <h3 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 16, fontWeight: 700, marginBottom: 6, color: C.text }}>{t as string}</h3>
-                    <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.6, margin: 0 }}>{d as string}</p>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: C.navy, letterSpacing: 2, marginBottom: 8, fontFamily: "'Plus Jakarta Sans',sans-serif" }}>{n}</div>
+                    <h3 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 17, fontWeight: 700, marginBottom: 8, color: C.text }}>{t as string}</h3>
+                    <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.65, margin: 0 }}>{d as string}</p>
                   </div>
                 ))}
               </div>
             </Reveal>
           </div>
+
         </div>
       </section>
 
@@ -445,28 +457,40 @@ export default function LandingPage() {
         <div style={{ maxWidth: 1240, margin: "0 auto", textAlign: "center" }}>
           <Reveal><p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "2.5px", textTransform: "uppercase", color: C.navy, marginBottom: 14 }}>Simple Setup</p></Reveal>
           <Reveal delay={60}><h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: "clamp(26px,3vw,42px)", fontWeight: 800, lineHeight: 1.12, letterSpacing: "-1px", marginBottom: 64, color: C.text }}>Simple Setup. Continuous Protection.</h2></Reveal>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 20 }}>
+          <div className="steps" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0, position: "relative" }}>
+            <div style={{ position: "absolute", top: 32, left: "16.66%", right: "16.66%", height: 1, background: `linear-gradient(90deg,transparent,${C.border},transparent)`, zIndex: 0 }}/>
             {[
-              ["Attack Detection","Real-time logging of SQLi, XSS, LFI and RCE attempts with full context."],
-              ["File Monitoring","Hash-based verification of WordPress core, themes and plugin files."],
-              ["IP Blocking","Coraza WAF auto-bans attackers within seconds of detection."],
-              ["Geo Blocking","Restrict traffic from specific countries using geolocation."],
-              ["Login Shield","Monitor brute-force attempts and suspicious auth events."],
-              ["Malware Scan","Scan for malicious code against WordPress core checksums."],
-              ["Activity Logs","Track admin actions and user events with full timestamps."],
-              ["XML-RPC Off","Disable XML-RPC to eliminate DDoS and credential stuffing."],
-              ["Away Mode","Lock wp-admin outside business hours automatically."],
-              ["Config Sync","Settings push to WordPress every 2 minutes automatically."],
-            ].map(([t, d], i) => (
-              <Reveal key={t as string} delay={i * 60}>
-                <div style={{ background: C.bg, border: `1px solid ${C.borderSub}`, borderRadius: 12, padding: "20px 16px", textAlign: "left", transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s" }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = C.navy; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(0,40,142,0.07)"; (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = C.borderSub; (e.currentTarget as HTMLElement).style.boxShadow = "none"; (e.currentTarget as HTMLElement).style.transform = "none"; }}>
-                  <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(0,40,142,0.07)", border: `1px solid rgba(0,40,142,0.12)`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-                    <span style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 13, fontWeight: 800, color: C.navy }}>{String(i + 1).padStart(2,"0")}</span>
+              {
+                n: "1",
+                t: "Install WP Shielder",
+                d: "Activate the plugin from your WordPress dashboard and enter your license key. Under 2 minutes.",
+                icon: <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              },
+              {
+                n: "2",
+                t: "Configure Protection",
+                d: "Enable monitoring, scanning, geo blocking, and security modes from the cloud dashboard.",
+                icon: <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              },
+              {
+                n: "3",
+                t: "Stay Protected",
+                d: "WP Shielder watches your site 24/7 and alerts you the moment anything suspicious is detected.",
+                icon: <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+              }
+            ].map((step, i) => (
+              <Reveal key={step.n} delay={i * 150}>
+                <div style={{ textAlign: "center", padding: "0 24px" }}>
+                  <div style={{ position: "relative", width: 64, height: 64, margin: "0 auto 24px", zIndex: 2 }}>
+                    <div style={{ width: "100%", height: "100%", borderRadius: "50%", background: C.bg, border: `2px solid ${C.navy}`, display: "flex", alignItems: "center", justifyContent: "center", color: C.navy, position: "relative", zIndex: 2 }}>
+                      {step.icon}
+                    </div>
+                    <div style={{ position: "absolute", top: -4, right: -4, width: 24, height: 24, borderRadius: "50%", background: C.lime, color: C.shield, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800, zIndex: 3, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", fontFamily: "'Plus Jakarta Sans',sans-serif" }}>
+                      {step.n}
+                    </div>
                   </div>
-                  <h3 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 13, fontWeight: 700, marginBottom: 6, color: C.text }}>{t as string}</h3>
-                  <p style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.55, margin: 0 }}>{d as string}</p>
+                  <h3 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 10, color: C.text }}>{step.t}</h3>
+                  <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.7, margin: 0 }}>{step.d}</p>
                 </div>
               </Reveal>
             ))}
