@@ -50,35 +50,46 @@ function ShieldLogo({ size = 44 }: { size?: number }) {
   );
 }
 
-// ─── Floating shield (fixed position, always on top) ──────────────────────
-function FloatingShield({ scrollY }: { scrollY: number }) {
-  const rotate = scrollY * 0.012;
-  const floatY = Math.sin(scrollY * 0.004) * 18;
+// ─── Floating shields — two mirrored, different sizes and speeds ─────────
+function ShieldSVG() {
   return (
-    <div style={{
-      position: "fixed",
-      right: "3%",
-      top: "50%",
-      width: 520,
-      height: 520,
-      opacity: 0.06,
-      pointerEvents: "none",
-      zIndex: 50,
-      transform: `translateY(calc(-50% + ${floatY}px)) rotate(${rotate}deg)`,
-      transition: "transform 0.08s linear",
-      willChange: "transform",
-      mixBlendMode: "multiply" as const,
-    }}>
-      <svg viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
-        <path d="M50,5 L95,22 L95,58 C95,82 50,98 50,98 C50,98 5,82 5,58 L5,22 Z" stroke={C.navy} strokeWidth="1.5"/>
-        <path d="M30,50 C30,66 40,70 45,58 C50,46 50,46 55,58 C60,70 70,66 70,50" stroke={C.navy} strokeWidth="2" strokeLinecap="round"/>
-        <circle cx="50" cy="32" r="5" fill={C.navy}/>
-        <path d="M50,5 L95,22 L95,58 C95,82 50,98" stroke={C.navy} strokeWidth="0.6" opacity="0.4"/>
-      </svg>
-    </div>
+    <svg viewBox="0 0 100 110" fill="none" xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
+      <path d="M50,5 L95,22 L95,58 C95,82 50,98 50,98 C50,98 5,82 5,58 L5,22 Z" stroke={C.navy} strokeWidth="1.5"/>
+      <path d="M30,50 C30,66 40,70 45,58 C50,46 50,46 55,58 C60,70 70,66 70,50" stroke={C.navy} strokeWidth="2" strokeLinecap="round"/>
+      <circle cx="50" cy="32" r="5" fill={C.navy}/>
+      <path d="M50,5 L95,22 L95,58 C95,82 50,98" stroke={C.navy} strokeWidth="0.6" opacity="0.4"/>
+    </svg>
   );
 }
 
+function FloatingShield({ scrollY }: { scrollY: number }) {
+  const rotateRight = scrollY * 0.01;
+  const floatRight  = Math.sin(scrollY * 0.003) * 22;
+  const rotateLeft  = -(scrollY * 0.018);
+  const floatLeft   = Math.sin(scrollY * 0.005 + 1.8) * 14;
+
+  const base: React.CSSProperties = {
+    position: "fixed",
+    pointerEvents: "none",
+    zIndex: 50,
+    transition: "transform 0.08s linear",
+    willChange: "transform",
+    mixBlendMode: "multiply",
+  };
+
+  return (
+    <>
+      <div style={{ ...base, right: "2%", top: "50%", width: 540, height: 540, opacity: 0.05,
+        transform: `translateY(calc(-50% + ${floatRight}px)) rotate(${rotateRight}deg)` }}>
+        <ShieldSVG/>
+      </div>
+      <div style={{ ...base, left: "1%", top: "35%", width: 280, height: 280, opacity: 0.035,
+        transform: `translateY(calc(-50% + ${floatLeft}px)) rotate(${rotateLeft}deg)` }}>
+        <ShieldSVG/>
+      </div>
+    </>
+  );
+}
 // ─── Scroll reveal ────────────────────────────────────────────────────────
 function useReveal(threshold = 0.12) {
   const ref = useRef<HTMLDivElement>(null);
@@ -224,7 +235,7 @@ export default function LandingPage() {
 
       {/* ── NAV ── */}
       <nav style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100, padding: navScrolled ? "10px 6%" : "14px 6%", display: "flex", alignItems: "center", justifyContent: "space-between", background: navScrolled ? "rgba(247,249,251,0.98)" : "rgba(247,249,251,0.92)", backdropFilter: "blur(12px)", borderBottom: `1px solid ${C.borderSub}`, transition: "all 0.3s ease", boxShadow: navScrolled ? "0 2px 16px rgba(0,40,142,0.06)" : "none" }}>
-        <ShieldLogo size={40}/>
+        <ShieldLogo size={52}/>
         <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
           {["Features","How It Works","Pricing"].map(l => (
             <a key={l} href={`#${l.toLowerCase().replace(/ /g,"-")}`} style={{ color: C.textMid, textDecoration: "none", fontSize: 14, fontWeight: 500, fontFamily: "'Plus Jakarta Sans',sans-serif", transition: "color 0.2s" }}
@@ -480,7 +491,7 @@ export default function LandingPage() {
       {/* ── FOOTER ── */}
       <footer style={{ background: C.bgSurface, borderTop: `1px solid ${C.borderSub}`, padding: "36px 6%" }}>
         <div style={{ maxWidth: 1240, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 20 }}>
-          <ShieldLogo size={36}/>
+          <ShieldLogo size={48}/>
           <div style={{ display: "flex", gap: 24 }}>
             {[["#features","Features"],["#how-it-works","How It Works"],["#pricing","Pricing"],["https://cybernara.com","Cybernara"]].map(([href, label]) => (
               <a key={label as string} href={href as string} style={{ fontSize: 13, color: C.textMuted, textDecoration: "none", transition: "color 0.2s" }}
