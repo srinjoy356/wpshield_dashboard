@@ -313,10 +313,18 @@ export default function LandingPage() {
                 <p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontStyle: "italic", color: C.navy, fontWeight: 600 }}>"WP Shielder is antifragile: every attack makes it stronger."</p>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {["Website downtime & revenue loss","SEO blacklisting by Google","Stolen customer data & credentials","Malware injections & backdoors","Hosting account suspension"].map(t => (
-                  <div key={t} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: C.textMid }}>
-                    <div style={{ width: 20, height: 20, borderRadius: 6, background: "rgba(186,26,26,0.08)", border: "1px solid rgba(186,26,26,0.2)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>✕</div>
-                    {t}
+                {[
+                  { icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-.18-5.14"/></svg>, text: "Website downtime & revenue loss" },
+                  { icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>, text: "SEO blacklisting by Google" },
+                  { icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>, text: "Stolen customer data & credentials" },
+                  { icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>, text: "Malware injections & backdoors" },
+                  { icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M3.27 9h17.46"/></svg>, text: "Hosting account suspension" },
+                ].map(item => (
+                  <div key={item.text} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: C.textMid }}>
+                    <div style={{ width: 22, height: 22, borderRadius: 6, background: "rgba(186,26,26,0.08)", border: "1px solid rgba(186,26,26,0.18)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {item.icon}
+                    </div>
+                    {item.text}
                   </div>
                 ))}
               </div>
@@ -387,14 +395,28 @@ export default function LandingPage() {
         <div style={{ maxWidth: 1240, margin: "0 auto", textAlign: "center" }}>
           <Reveal><p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "2.5px", textTransform: "uppercase", color: C.navy, marginBottom: 14 }}>Simple Setup</p></Reveal>
           <Reveal delay={60}><h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: "clamp(26px,3vw,42px)", fontWeight: 800, lineHeight: 1.12, letterSpacing: "-1px", marginBottom: 64, color: C.text }}>Simple Setup. Continuous Protection.</h2></Reveal>
-          <div className="steps" style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 0, position: "relative" }}>
-            <div style={{ position: "absolute", top: 28, left: "16.66%", right: "16.66%", height: 1, background: `linear-gradient(90deg,transparent,${C.border},transparent)` }}/>
-            {[["1","Install WP Shielder","Activate the plugin from your WordPress dashboard and enter your license key. Under 2 minutes."],["2","Configure Protection","Enable monitoring, scanning, geo blocking, and security modes from the cloud dashboard."],["3","Stay Protected","WP Shielder watches your site 24/7 and alerts you the moment anything suspicious is detected."]].map(([n,t,d], i) => (
-              <Reveal key={n as string} delay={i * 150}>
-                <div style={{ textAlign: "center", padding: "0 24px" }}>
-                  <div style={{ width: 56, height: 56, borderRadius: "50%", background: C.bg, border: `2px solid ${C.navy}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 24px", fontFamily: "'Plus Jakarta Sans',sans-serif", fontWeight: 800, fontSize: 18, color: C.navy }}>{n}</div>
-                  <h3 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 18, fontWeight: 700, marginBottom: 10, color: C.text }}>{t as string}</h3>
-                  <p style={{ fontSize: 14, color: C.textMuted, lineHeight: 1.7, margin: 0 }}>{d as string}</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 20 }}>
+            {[
+              ["Attack Detection","Real-time logging of SQLi, XSS, LFI and RCE attempts with full context."],
+              ["File Monitoring","Hash-based verification of WordPress core, themes and plugin files."],
+              ["IP Blocking","Coraza WAF auto-bans attackers within seconds of detection."],
+              ["Geo Blocking","Restrict traffic from specific countries using geolocation."],
+              ["Login Shield","Monitor brute-force attempts and suspicious auth events."],
+              ["Malware Scan","Scan for malicious code against WordPress core checksums."],
+              ["Activity Logs","Track admin actions and user events with full timestamps."],
+              ["XML-RPC Off","Disable XML-RPC to eliminate DDoS and credential stuffing."],
+              ["Away Mode","Lock wp-admin outside business hours automatically."],
+              ["Config Sync","Settings push to WordPress every 2 minutes automatically."],
+            ].map(([t, d], i) => (
+              <Reveal key={t as string} delay={i * 60}>
+                <div style={{ background: C.bg, border: `1px solid ${C.borderSub}`, borderRadius: 12, padding: "20px 16px", textAlign: "left", transition: "border-color 0.2s, box-shadow 0.2s, transform 0.2s" }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = C.navy; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(0,40,142,0.07)"; (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)"; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = C.borderSub; (e.currentTarget as HTMLElement).style.boxShadow = "none"; (e.currentTarget as HTMLElement).style.transform = "none"; }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: "rgba(0,40,142,0.07)", border: `1px solid rgba(0,40,142,0.12)`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                    <span style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 13, fontWeight: 800, color: C.navy }}>{String(i + 1).padStart(2,"0")}</span>
+                  </div>
+                  <h3 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 13, fontWeight: 700, marginBottom: 6, color: C.text }}>{t as string}</h3>
+                  <p style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.55, margin: 0 }}>{d as string}</p>
                 </div>
               </Reveal>
             ))}
@@ -416,15 +438,21 @@ export default function LandingPage() {
             </div>
           </Reveal>
           <div className="tbadges" style={{ display: "grid", gridTemplateColumns: "repeat(5,1fr)", gap: 14 }}>
-            {["Real-Time Monitoring","Malware Detection","WordPress Focused","Performance Friendly","Agency Ready"].map((l, i) => (
-              <Reveal key={l} delay={i * 70}>
+            {[
+              { label: "Real-Time Monitoring", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg> },
+              { label: "Malware Detection", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg> },
+              { label: "WordPress Focused", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> },
+              { label: "Performance Friendly", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> },
+              { label: "Agency Ready", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> },
+            ].map((b, i) => (
+              <Reveal key={b.label} delay={i * 70}>
                 <div style={{ background: C.white, border: `1px solid ${C.borderSub}`, borderRadius: 10, padding: "18px 14px", textAlign: "center", transition: "border-color 0.2s, box-shadow 0.2s" }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = C.navy; (e.currentTarget as HTMLElement).style.boxShadow = "0 4px 16px rgba(0,40,142,0.08)"; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = C.borderSub; (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}>
-                  <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(0,40,142,0.07)", border: `1px solid rgba(0,40,142,0.12)`, margin: "0 auto 10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  <div style={{ width: 32, height: 32, borderRadius: "50%", background: "rgba(0,40,142,0.07)", border: `1px solid rgba(0,40,142,0.12)`, margin: "0 auto 10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {b.icon}
                   </div>
-                  <p style={{ fontSize: 12, color: C.textMid, fontWeight: 600, lineHeight: 1.4, margin: 0 }}>{l}</p>
+                  <p style={{ fontSize: 12, color: C.textMid, fontWeight: 600, lineHeight: 1.4, margin: 0 }}>{b.label}</p>
                 </div>
               </Reveal>
             ))}
