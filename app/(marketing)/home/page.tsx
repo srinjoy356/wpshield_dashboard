@@ -194,10 +194,10 @@ function FeatureCard({ icon, title, desc, delay = 0 }: { icon: React.ReactNode; 
   const [hov, setHov] = useState(false);
   return (
     <div ref={ref} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-      style={{ background: C.white, border: `1px solid ${hov ? C.navy : C.borderSub}`, borderRadius: 12, padding: 24, opacity: visible ? 1 : 0, transform: visible ? (hov ? "translateY(-3px)" : "none") : "translateY(24px)", transition: `opacity 0.6s ease ${delay}ms, transform 0.3s ease, border-color 0.2s`, boxShadow: hov ? "0 12px 32px rgba(0,40,142,0.08)" : "0 2px 8px rgba(0,0,0,0.04)" }}>
+      style={{ background: C.white, border: `1px solid ${hov ? C.navy : C.borderSub}`, borderRadius: 12, padding: 20, opacity: visible ? 1 : 0, transform: visible ? (hov ? "translateY(-3px)" : "none") : "translateY(24px)", transition: `opacity 0.6s ease ${delay}ms, transform 0.3s ease, border-color 0.2s`, boxShadow: hov ? "0 12px 32px rgba(0,40,142,0.08)" : "0 2px 8px rgba(0,0,0,0.04)" }}>
       <div style={{ width: 40, height: 40, borderRadius: 10, background: "rgba(0,40,142,0.06)", border: `1px solid rgba(0,40,142,0.12)`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 16 }}>{icon}</div>
-      <h3 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 15, fontWeight: 700, marginBottom: 8, color: C.text }}>{title}</h3>
-      <p style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.6, margin: 0 }}>{desc}</p>
+      <h3 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 14, fontWeight: 700, marginBottom: 8, color: C.text }}>{title}</h3>
+      <p style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6, margin: 0 }}>{desc}</p>
     </div>
   );
 }
@@ -225,8 +225,11 @@ export default function LandingPage() {
         ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:${C.bg}}::-webkit-scrollbar-thumb{background:${C.navy};border-radius:4px}
         @keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.75)}}
         @keyframes ringPulse{0%,100%{transform:scale(1);opacity:.4}50%{transform:scale(1.05);opacity:1}}
+        @media(max-width:1024px){.fgrid{grid-template-columns:repeat(3,1fr)!important}}
         @media(max-width:900px){.hgrid{grid-template-columns:1fr!important}.hvis{display:none!important}.wgrid{grid-template-columns:1fr!important}.pgrid{grid-template-columns:1fr!important}.steps{grid-template-columns:1fr!important}.sgrid{grid-template-columns:repeat(2,1fr)!important}.tbadges{grid-template-columns:repeat(3,1fr)!important}}
-        @media(max-width:600px){.fgrid{grid-template-columns:1fr!important}.sgrid{grid-template-columns:repeat(2,1fr)!important}.tbadges{grid-template-columns:repeat(2,1fr)!important}}
+        @media(max-width:768px){.fgrid{grid-template-columns:repeat(2,1fr)!important}}
+        @media(max-width:600px){.sgrid{grid-template-columns:repeat(2,1fr)!important}.tbadges{grid-template-columns:repeat(2,1fr)!important}}
+        @media(max-width:500px){.fgrid{grid-template-columns:1fr!important}}
         @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
       `}</style>
 
@@ -351,24 +354,71 @@ export default function LandingPage() {
         <div style={{ maxWidth: 1240, margin: "0 auto" }}>
           <Reveal><p style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: "2.5px", textTransform: "uppercase", color: C.navy, marginBottom: 14 }}>Full Protection Suite</p></Reveal>
           <Reveal delay={60}><h2 style={{ fontFamily: "'Plus Jakarta Sans',sans-serif", fontSize: "clamp(28px,3vw,42px)", fontWeight: 800, lineHeight: 1.12, letterSpacing: "-1px", marginBottom: 56, color: C.text }}>Engineered for Absolute Defense</h2></Reveal>
-          <div className="fgrid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(260px,1fr))", gap: 16 }}>
+          
+          <div className="fgrid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16 }}>
             {[
-              { title: "Attack Detection & Logging", desc: "Track SQLi, XSS, LFI, and RCE attempts in real time with full request context.", delay: 0 },
-              { title: "Login Monitoring", desc: "Detect brute-force patterns and get alerted on suspicious authentication events.", delay: 60 },
-              { title: "File Integrity Monitoring", desc: "Hash-based verification detects unauthorized changes to WordPress core, themes, plugins.", delay: 120 },
-              { title: "Malware Scanner", desc: "Scan for malicious code and suspicious patterns against WordPress checksums.", delay: 0 },
-              { title: "Active IP Blocking", desc: "Coraza Shadow WAF auto-bans attackers within seconds of detection.", delay: 60 },
-              { title: "Geo Blocking", desc: "Restrict traffic from specific countries using geolocation intelligence.", delay: 120 },
-              { title: "User Activity Logs", desc: "Track admin actions, plugin changes, and user events with full timestamps.", delay: 0 },
-              { title: "XML-RPC Protection", desc: "Disable XML-RPC to eliminate DDoS amplification and credential stuffing vectors.", delay: 60 },
-              { title: "Away & Maintenance Mode", desc: "Restrict wp-admin to business hours and show branded maintenance pages.", delay: 120 },
-              { title: "Config Sync", desc: "Security settings push to WordPress every 2 minutes — or instantly with Force Sync.", delay: 0 },
-            ].map((f, i) => (
-              <FeatureCard key={f.title} icon={
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                </svg>
-              } title={f.title} desc={f.desc} delay={f.delay}/>
+              { 
+                title: "Attack Detection & Logging", 
+                desc: "Track SQLi, XSS, LFI, and RCE attempts in real time with full request context.", 
+                delay: 0,
+                icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+              },
+              { 
+                title: "Login Monitoring", 
+                desc: "Detect brute-force patterns and get alerted on suspicious authentication events.", 
+                delay: 60,
+                icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              },
+              { 
+                title: "File Integrity Monitoring", 
+                desc: "Hash-based verification detects unauthorized changes to WordPress core, themes, plugins.", 
+                delay: 120,
+                icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              },
+              { 
+                title: "Malware Scanner", 
+                desc: "Scan for malicious code and suspicious patterns against WordPress checksums.", 
+                delay: 180,
+                icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="14" x="8" y="6" rx="4"/><path d="M19 7l-3 2"/><path d="M5 7l3 2"/><path d="M19 19l-3-2"/><path d="M5 19l3-2"/><path d="M20 13h-4"/><path d="M4 13h4"/><path d="M10 4l1 2"/><path d="M14 4l-1 2"/></svg>
+              },
+              { 
+                title: "Active IP Blocking", 
+                desc: "Coraza Shadow WAF auto-bans attackers within seconds of detection.", 
+                delay: 240,
+                icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              },
+              { 
+                title: "Geo Blocking", 
+                desc: "Restrict traffic from specific countries using geolocation intelligence.", 
+                delay: 0,
+                icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              },
+              { 
+                title: "User Activity Logs", 
+                desc: "Track admin actions, plugin changes, and user events with full timestamps.", 
+                delay: 60,
+                icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+              },
+              { 
+                title: "XML-RPC Protection", 
+                desc: "Disable XML-RPC to eliminate DDoS amplification and credential stuffing vectors.", 
+                delay: 120,
+                icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></svg>
+              },
+              { 
+                title: "Away & Maintenance Mode", 
+                desc: "Restrict wp-admin to business hours and show branded maintenance pages.", 
+                delay: 180,
+                icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+              },
+              { 
+                title: "Config Sync", 
+                desc: "Security settings push to WordPress every 2 minutes — or instantly with Force Sync.", 
+                delay: 240,
+                icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.navy} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+              },
+            ].map((f) => (
+              <FeatureCard key={f.title} icon={f.icon} title={f.title} desc={f.desc} delay={f.delay}/>
             ))}
           </div>
         </div>
