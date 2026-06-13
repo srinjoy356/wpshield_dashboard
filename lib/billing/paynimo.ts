@@ -1,25 +1,25 @@
 import crypto from 'crypto';
 
 function getKey(): string {
-  const key = process.env.PAYNIMO_ENCRYPTION_KEY;
-  if (!key) throw new Error('PAYNIMO_ENCRYPTION_KEY is required');
+  const key = process.env.WORLDLINE_SALT;
+  if (!key) throw new Error('WORLDLINE_SALT is required');
   return key;
 }
 
 function getMerchant(): string {
-  const code = process.env.PAYNIMO_MERCHANT_CODE;
-  if (!code) throw new Error('PAYNIMO_MERCHANT_CODE is required');
+  const code = process.env.WORLDLINE_MERCHANT_ID;
+  if (!code) throw new Error('WORLDLINE_MERCHANT_ID is required');
   return code;
 }
 
-const SCHEME_CODE = process.env.PAYNIMO_SCHEME_CODE || 'FIRST';
+const SCHEME_CODE = process.env.SCHEME_CODE || 'FIRST';
 
 export class Paynimo {
   static generateCheckoutToken(
     txnRefNo: string, amount: number, consumerId: string,
     customerEmail: string, customerMobile: string,
   ) {
-    const key = getKey();
+    const key          = getKey();
     const merchantCode = getMerchant();
     const rawData = [
       merchantCode, txnRefNo, amount.toString(), '',
@@ -30,11 +30,11 @@ export class Paynimo {
   }
 
   static verifyResponseHash(responseString: string): boolean {
-    const key = getKey();
+    const key   = getKey();
     const parts = responseString.split('|');
     if (parts.length < 16) return false;
-    const receivedHash = parts.pop();
-    const rawData = parts.join('|') + '|' + key;
+    const receivedHash  = parts.pop();
+    const rawData       = parts.join('|') + '|' + key;
     const calculatedHash = crypto.createHash('sha512').update(rawData).digest('hex').toLowerCase();
     return receivedHash?.toLowerCase() === calculatedHash;
   }
