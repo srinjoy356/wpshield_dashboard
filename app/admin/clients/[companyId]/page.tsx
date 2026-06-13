@@ -22,7 +22,14 @@ export default async function ClientDetailPage({ params, searchParams }: Props) 
   const supabase = createClient();
   
   // ... fetch data code ...
-  const [company, attacks, logins, files, inventory, alerts, timeData, severityData] = await Promise.all([
+  // Also fetch sites for this company
+  const sitesQuery = supabase
+    .from('sites')
+    .select('id, url, is_active, normalized_domain, last_seen_at, created_at, deactivated_at, license_id')
+    .eq('company_id', companyId)
+    .order('created_at', { ascending: false });
+
+  const [company, attacks, logins, files, inventory, alerts, timeData, severityData, sitesResult] = await Promise.all([
     getCompanyWithStats(supabase, companyId),
     getAttackEvents(supabase, { companyId }),
     getLoginEvents(supabase, { companyId }),
@@ -31,7 +38,9 @@ export default async function ClientDetailPage({ params, searchParams }: Props) 
     getAlerts(supabase, { companyId }),
     getTimeSeriesStats(supabase, companyId),
     getSeverityStats(supabase, companyId),
+    sitesQuery,
   ]);
+  const sites = sitesResult.data || [];
 
   if (!company) {
     return (
@@ -53,6 +62,7 @@ export default async function ClientDetailPage({ params, searchParams }: Props) 
       alerts={alerts}
       timeData={timeData}
       severityData={severityData}
+      sites={sites}
       defaultTab={initialTab}
     />
   );

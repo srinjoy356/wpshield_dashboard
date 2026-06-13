@@ -19,6 +19,7 @@ import {
   Check,
   CreditCard,
   FileSignature,
+  Package,
 } from "lucide-react";
 import { useState, useTransition, useMemo, useEffect } from "react";
 import { Input } from "@/components/ui/input";
@@ -43,6 +44,7 @@ const adminNav: NavItem[] = [
   { label: "Alerts", href: "/admin/alerts", icon: Bell },
   { label: "Activity Logs", href: "/admin/activity", icon: Activity },
   { label: "Analyst Reviews", href: "/admin/reviews", icon: FileSignature },
+  { label: "Plugin Releases", href: "/admin/plugin", icon: Package },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
 

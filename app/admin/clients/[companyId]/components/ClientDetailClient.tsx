@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatusDot } from "@/components/dashboard/StatusDot";
 import { TimeCell } from "@/components/dashboard/TimeCell";
-import { ExternalLink, Mail, Calendar, Activity, ShieldAlert, LogIn, FileCode, Package, LayoutDashboard, Edit, KeyRound, UserX, Trash2, UserCheck, ArrowLeft } from "lucide-react";
+import { ExternalLink, Mail, Calendar, Activity, ShieldAlert, LogIn, FileCode, Package, LayoutDashboard, Edit, KeyRound, UserX, Trash2, UserCheck, ArrowLeft, Globe, CheckCircle, XCircle } from "lucide-react";
 import { Company, AttackEvent, LoginEvent, FileEvent, Alert, InventorySnapshotView } from "@/types";
 
 // Shared Components
@@ -27,6 +27,17 @@ import { ResetPasswordModal } from "./ResetPasswordModal";
 import { DeleteClientModal } from "./DeleteClientModal";
 import { SuspendConfirmModal } from "./SuspendConfirmModal";
 
+interface SiteRow {
+  id: string;
+  url: string;
+  is_active: boolean;
+  normalized_domain: string | null;
+  last_seen_at: string | null;
+  created_at: string;
+  deactivated_at: string | null;
+  license_id: string | null;
+}
+
 interface ClientDetailClientProps {
   company: Company & { stats: any };
   attacks: AttackEvent[];
@@ -36,6 +47,7 @@ interface ClientDetailClientProps {
   alerts: Alert[];
   timeData: any[];
   severityData: any[];
+  sites?: SiteRow[];
   defaultTab?: string;
 }
 
@@ -48,6 +60,7 @@ export function ClientDetailClient({
   alerts,
   timeData,
   severityData,
+  sites = [],
   defaultTab = "overview",
 }: ClientDetailClientProps) {
   const [activeTab, setActiveTab] = useState(defaultTab);
@@ -269,6 +282,40 @@ export function ClientDetailClient({
           <InventoryList snapshot={inventory} />
         </TabsContent>
 
+
+        <TabsContent value="sites" className="outline-none">
+          {sites.length === 0 ? (
+            <div className="text-sm text-[var(--muted)] p-6 text-center">No sites registered for this client.</div>
+          ) : (
+            <div className="space-y-3">
+              {sites.map(site => (
+                <div key={site.id} className="flex items-start justify-between rounded-xl border border-[var(--border)] bg-surface p-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      {site.is_active
+                        ? <CheckCircle className="h-4 w-4 text-emerald-500" strokeWidth={1.5}/>
+                        : <XCircle className="h-4 w-4 text-red-400" strokeWidth={1.5}/>}
+                      <a href={site.url} target="_blank" rel="noopener noreferrer"
+                        className="font-mono text-sm font-semibold hover:underline flex items-center gap-1">
+                        {site.url}<ExternalLink className="h-3 w-3 ml-1"/>
+                      </a>
+                    </div>
+                    <div className="flex gap-4 text-xs text-[var(--muted)]">
+                      <span>Added: {new Date(site.created_at).toLocaleDateString()}</span>
+                      {site.last_seen_at && <span>Last seen: {new Date(site.last_seen_at).toLocaleDateString()}</span>}
+                      {!site.is_active && site.deactivated_at && (
+                        <span className="text-red-500">Deactivated: {new Date(site.deactivated_at).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${site.is_active ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-600 border border-red-200'}`}>
+                    {site.is_active ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
         <TabsContent value="alerts" className="outline-none">
           <AlertsList initialAlerts={alerts} isAdmin={true} />
         </TabsContent>
