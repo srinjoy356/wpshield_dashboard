@@ -38,8 +38,14 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     fs.writeFileSync(filepath, buffer);
 
-    const baseUrl  = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const zip_url  = `${baseUrl}/uploads/releases/${filename}`;
+    const host    = request.headers.get('host') || 'localhost:3000';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = (
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    `${protocol}://${host}`
+    ).replace(/\/$/, '');
+        const zip_url  = `${baseUrl}/uploads/releases/${filename}`;
     const zip_path = filepath;
 
     const adminSupabase = createAdminClient();
