@@ -40,7 +40,13 @@ export async function POST(request: Request) {
 
     if (pcErr) throw new Error(`Failed to create pending checkout: ${pcErr.message}`);
 
-    const baseUrl    = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const host    = request.headers.get('host') || 'localhost:3000';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const baseUrl = (
+      process.env.APP_URL ||
+      process.env.NEXT_PUBLIC_APP_URL ||
+      `${protocol}://${host}`
+    ).replace(/\/$/, '');
     const returnUrl  = `${baseUrl}/api/billing/paynimo-return`;
 
     const token = Paynimo.generateCheckoutToken(
