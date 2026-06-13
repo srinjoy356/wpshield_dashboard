@@ -45,6 +45,7 @@ export async function POST(request: Request) {
     const baseUrl = (
       process.env.APP_URL ||
       process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.NEXT_PUBLIC_SITE_URL ||
       `${protocol}://${host}`
     ).replace(/\/$/, '');
     const returnUrl  = `${baseUrl}/api/billing/paynimo-return`;
