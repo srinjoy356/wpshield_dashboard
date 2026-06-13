@@ -1,34 +1,31 @@
 import { NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/admin';
+import fs from 'fs';
+import path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const supabase = createAdminClient();
-    const { data: release, error } = await supabase
-      .from('plugin_releases')
-      .select('version, zip_url, changelog, released_at')
-      .eq('is_latest', true)
-      .single();
+    const { searchParams } = new URL(request.url);
+    const filename = searchParams.get('file');
 
-    if (error || !release) {
-      return NextResponse.json({ error: 'No release found' }, { status: 404 });
+    if (!filename || !filename.endsWith('.zip') || filename.includes('..') || filename.includes('/')) {
+      return NextResponse.json({ error: 'Invalid filename' }, { status: 400 });
     }
 
-    return NextResponse.json({
-      version:      release.version,
-      download_url: release.zip_url,
-      changelog:    release.changelog,
-      released_at:  release.released_at,
-      name:         'WPShield Security',
-      slug:         'cybernara-wpshield',
-      author:       'Cybernara',
-      requires:     '5.8',
-      tested:       '6.7',
-      sections: {
-        description: 'Advanced WordPress security monitoring and protection by Cybernara.',
-        changelog:   release.changelog || 'Bug fixes and improvements.',
+    const filePath = path.join(process.cwd(), 'public', 'uploads', 'releases', filename);
+
+    if (!fs.existsSync(filePath)) {
+      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    }
+
+    const fileBuffer = fs.readFileSync(filePath);
+
+    return new Response(fileBuffer, {
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': fileBuffer.length.toString(),
       },
     });
   } catch (err: any) {
