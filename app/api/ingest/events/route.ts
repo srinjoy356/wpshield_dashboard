@@ -95,7 +95,19 @@ export async function POST(request: Request) {
         occurred_at: payload.occurred_at || new Date().toISOString()
       });
       if (error) throw new Error(`Inventory insert error: ${error.message}`);
+    } else {
+      // Unknown event_type — reject instead of silently succeeding
+      return NextResponse.json(
+        { error: `Unknown event_type: ${eventType}` },
+        { status: 400 }
+      );
     }
+
+    // Update last_seen_at on both company and site
+    await supabase.from('sites')
+      .update({ last_seen_at: new Date().toISOString() })
+      .eq('company_id', auth.site.company_id)
+      .eq('id', auth.site_id);
 
     await supabase.from('companies')
       .update({ last_seen_at: new Date().toISOString() })

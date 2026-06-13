@@ -145,7 +145,7 @@ async function runVulnCheck() {
       // NVD
       try {
         const nvdRes = await fetch(
-          `https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=wordpress+${encodeURIComponent(name)}&apiKey=4f53cadd-c7dd-48dc-b10e-bdd7752a6388`,
+          `https://services.nvd.nist.gov/rest/json/cves/2.0?keywordSearch=wordpress+${encodeURIComponent(name)}${process.env.NVD_API_KEY ? "&apiKey=" + process.env.NVD_API_KEY : ""}`,
           { signal: AbortSignal.timeout(15000) }
         );
         if (nvdRes.ok) {
