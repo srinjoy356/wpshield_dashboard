@@ -23,8 +23,8 @@ export function SetPasswordForm({ token }: SetPasswordFormProps) {
 
   // Debug: Log the URL to verify token extraction
   useEffect(() => {
-    console.log("SetPasswordForm current URL:", window.location.href);
-    console.log("Extracted token from props:", token);
+    if (process.env.NEXT_PUBLIC_DEBUG === "true") console.log("SetPasswordForm current URL:", window.location.href);
+    if (process.env.NEXT_PUBLIC_DEBUG === "true") console.log("Extracted token from props:", token);
   }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {

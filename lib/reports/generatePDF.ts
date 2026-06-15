@@ -97,14 +97,14 @@ const truncatePath = (path: string) =>
   path.length > 50 ? "..." + path.slice(-47) : path;
 
 export async function generateSecurityReport(data: ReportData) {
-  console.log("[PDF Debug] Data received:", {
+  if (process.env.NEXT_PUBLIC_DEBUG === "true") console.log("[PDF Debug] Data received:", {
     company: data.company.display_name,
     score: data.maturity.score,
     attacks: data.stats.totalAttacks,
     vulns: data.vulnerablePlugins.length,
     failedChecks: data.failedChecks.length
   });
-  console.log("[PDF Debug] Starting PDF generation...");
+  if (process.env.NEXT_PUBLIC_DEBUG === "true") console.log("[PDF Debug] Starting PDF generation...");
 
   const pdfMakeModule = await import('pdfmake/build/pdfmake')
   const pdfMake = (pdfMakeModule.default || pdfMakeModule) as any
@@ -127,8 +127,8 @@ export async function generateSecurityReport(data: ReportData) {
     console.error('[PDF Debug] vfs_fonts load error:', e)
   }
 
-  console.log('[PDF Debug] vfs after fix:', !!pdfMake.vfs)
-  console.log('[PDF Debug] vfs keys sample:', 
+  if (process.env.NEXT_PUBLIC_DEBUG === 'true') console.log('[PDF Debug] vfs after fix:', !!pdfMake.vfs)
+  if (process.env.NEXT_PUBLIC_DEBUG === 'true') console.log('[PDF Debug] vfs keys sample:', 
     pdfMake.vfs ? Object.keys(pdfMake.vfs).slice(0, 3) : 'none')
 
   const siteUrl = data.company.site_url || "your-site.com";
@@ -590,7 +590,7 @@ export async function generateSecurityReport(data: ReportData) {
     },
   };
 
-  console.log("[PDF Debug] Document definition created, generating...");
+  if (process.env.NEXT_PUBLIC_DEBUG === "true") console.log("[PDF Debug] Document definition created, generating...");
 
   const companySlug = data.company.display_name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const dateStr = new Date().toISOString().split("T")[0];

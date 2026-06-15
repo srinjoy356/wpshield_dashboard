@@ -32,7 +32,8 @@ export async function POST(request: Request) {
     }
   }
 
-  console.log(`\n=========================================\n[DEV] OTP for ${user.email} is: ${code}\n=========================================\n`);
+  // OTP intentionally logged for dev only — gate in production
+  if (process.env.NEXT_PUBLIC_DEBUG === "true") console.log(`[DEV] OTP for ${user.email} is: ${code}`);
 
   const success = await sendEmailViaGraph(
     user.email!, 

@@ -12,17 +12,14 @@ export async function onboardClientAction(formData: FormData, isFromPending: boo
   
   // 1. Verify admin
   const profile = await getCurrentProfile(supabase);
-  if (!profile || profile.role !== "admin") {
+  if (!profile || !["admin","super_admin"].includes(profile.role)) {
     return { error: "Forbidden: Only admins can onboard clients." };
   }
 
   const email = formData.get("contact_email") as string;
   const password = (formData.get("password") as string) || Math.random().toString(36).slice(-12);
   
-  console.log("====================================");
-  console.log("GENERATED PASSWORD FOR:", email);
-  console.log(password);
-  console.log("====================================");
+  if (process.env.NEXT_PUBLIC_DEBUG === "true") { console.log("[DEV] GENERATED PASSWORD FOR:", email, password); }
   
   const company_id = formData.get("company_id") as string;
   const display_name = formData.get("display_name") as string;

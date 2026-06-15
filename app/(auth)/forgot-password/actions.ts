@@ -33,10 +33,7 @@ export async function sendResetLink(formData: FormData) {
       
       const resetUrl = `${siteUrl}/api/auth/callback?token_hash=${token}&type=recovery&next=/reset-password`;
       
-      console.log("\n=======================================================");
-      console.log("PASSWORD RESET LINK GENERATED:");
-      console.log(resetUrl);
-      console.log("=======================================================\n");
+      if (process.env.NEXT_PUBLIC_DEBUG === "true") { console.log("[DEV] PASSWORD RESET LINK:", resetUrl); }
       
       
       const emailHtml = `
