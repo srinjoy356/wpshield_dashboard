@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   try {
     const supabase = createClient();
     const profile  = await getCurrentProfile(supabase);
-    if (!profile || profile.role !== 'admin') {
+    if (!profile || !['admin','super_admin'].includes(profile.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -79,7 +79,7 @@ export async function GET() {
   try {
     const supabase = createClient();
     const profile  = await getCurrentProfile(supabase);
-    if (!profile || profile.role !== 'admin') {
+    if (!profile || !['admin','super_admin'].includes(profile.role)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

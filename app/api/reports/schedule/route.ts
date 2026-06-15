@@ -13,12 +13,12 @@ export async function GET(request: Request) {
       .eq("id", user.id)
       .single();
 
-    if (!profile || (!profile.company_id && profile.role !== "admin")) {
+    if (!profile || (!profile.company_id && !["admin","super_admin"].includes(profile.role))) {
       return NextResponse.json({ error: "No company associated" }, { status: 400 });
     }
 
     const url = new URL(request.url);
-    const company_id = profile.role === "admin" ? (url.searchParams.get("company_id") || profile.company_id) : profile.company_id;
+    const company_id = ["admin","super_admin"].includes(profile.role) ? (url.searchParams.get("company_id") || profile.company_id) : profile.company_id;
 
     if (!company_id) {
       return NextResponse.json({ error: "company_id required for admin" }, { status: 400 });
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await request.json();
-    const targetCompanyId = profile.role === "admin" ? (body.company_id || profile.company_id) : profile.company_id;
+    const targetCompanyId = ["admin","super_admin"].includes(profile.role) ? (body.company_id || profile.company_id) : profile.company_id;
 
     if (!targetCompanyId) {
        return NextResponse.json({ error: "company_id required" }, { status: 400 });

@@ -86,9 +86,24 @@ export async function middleware(request: NextRequest) {
   if (path.startsWith("/admin") || path.startsWith("/app")) {
     if (!user) return NextResponse.redirect(new URL("/login", request.url));
 
-    // 2FA Check
+    // 2FA Check — verify HMAC-signed cookie (not plaintext "true")
     const has2fa = request.cookies.get("wpshield_2fa_verified");
-    if (!has2fa || has2fa.value !== "true") {
+    const is2FAValid = (() => {
+      if (!has2fa?.value) return false;
+      try {
+        const secret = process.env.MFA_COOKIE_SECRET || process.env.CRON_SECRET;
+        if (!secret) return false;
+        const decoded = Buffer.from(has2fa.value, 'base64').toString();
+        const parts   = decoded.split(':');
+        if (parts.length !== 3) return false;
+        const [userId, timestamp, sig] = parts;
+        if (Date.now() - parseInt(timestamp) > 8 * 60 * 60 * 1000) return false;
+        const crypto   = require('crypto');
+        const expected = crypto.createHmac('sha256', secret).update(`${userId}:${timestamp}`).digest('hex');
+        return expected === sig;
+      } catch { return false; }
+    })();
+    if (!is2FAValid) {
       return NextResponse.redirect(new URL("/2fa-verify", request.url));
     }
 

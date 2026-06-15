@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const requestedCompanyId = searchParams.get("company_id");
 
-    const companyId = profile.role === "admin" && requestedCompanyId 
+    const companyId = ["admin","super_admin"].includes(profile.role) && requestedCompanyId 
       ? requestedCompanyId 
       : profile.company_id;
 
