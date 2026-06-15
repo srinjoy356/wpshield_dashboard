@@ -86,23 +86,34 @@ export async function middleware(request: NextRequest) {
   if (path.startsWith("/admin") || path.startsWith("/app")) {
     if (!user) return NextResponse.redirect(new URL("/login", request.url));
 
-    // 2FA Check — verify HMAC-signed cookie (not plaintext "true")
+    // 2FA Check — verify HMAC-signed cookie
     const has2fa = request.cookies.get("wpshield_2fa_verified");
-    const is2FAValid = (() => {
-      if (!has2fa?.value) return false;
+    let is2FAValid = false;
+    if (has2fa?.value) {
       try {
-        const secret = process.env.MFA_COOKIE_SECRET || process.env.CRON_SECRET;
-        if (!secret) return false;
-        const decoded = Buffer.from(has2fa.value, 'base64').toString();
-        const parts   = decoded.split(':');
-        if (parts.length !== 3) return false;
-        const [userId, timestamp, sig] = parts;
-        if (Date.now() - parseInt(timestamp) > 8 * 60 * 60 * 1000) return false;
-        const crypto   = require('crypto');
-        const expected = crypto.createHmac('sha256', secret).update(`${userId}:${timestamp}`).digest('hex');
-        return expected === sig;
-      } catch { return false; }
-    })();
+        const secret = process.env.MFA_COOKIE_SECRET || process.env.CRON_SECRET || "";
+        if (secret) {
+          const decoded = atob(has2fa.value.replace(/%3D/g, '='));
+          const lastColon = decoded.lastIndexOf(':');
+          const secondLastColon = decoded.lastIndexOf(':', lastColon - 1);
+          const userId    = decoded.substring(0, secondLastColon);
+          const timestamp = decoded.substring(secondLastColon + 1, lastColon);
+          const sig       = decoded.substring(lastColon + 1);
+          if (Date.now() - parseInt(timestamp) <= 8 * 60 * 60 * 1000) {
+            const encoder = new TextEncoder();
+            const key = await crypto.subtle.importKey(
+              "raw", encoder.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
+            );
+            const signatureBuffer = await crypto.subtle.sign(
+              "HMAC", key, encoder.encode(`${userId}:${timestamp}`)
+            );
+            const expected = Array.from(new Uint8Array(signatureBuffer))
+              .map(b => b.toString(16).padStart(2, "0")).join("");
+            is2FAValid = expected === sig;
+          }
+        }
+      } catch { is2FAValid = false; }
+    }
     if (!is2FAValid) {
       return NextResponse.redirect(new URL("/2fa-verify", request.url));
     }
