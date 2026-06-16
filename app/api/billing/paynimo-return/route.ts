@@ -122,7 +122,26 @@ export async function POST(request: Request) {
       customer = newCust;
     }
 
-    // 9. Check if customer already has an active subscription for this plan (RENEWAL)
+    // 9. Plan switch — if the customer has an active subscription on a DIFFERENT plan,
+    //    supersede it. The renewal check just below only matches the SAME plan_id, so
+    //    without this, buying a different plan while one is already active leaves both
+    //    simultaneously "active" — nothing else in this app expects more than one
+    //    active subscription per customer at a time (billing/page.tsx only ever shows
+    //    one), so that state is just wrong, not a supported multi-plan feature.
+    const { data: otherActiveSubs } = await supabase
+      .from('subscriptions')
+      .select('id')
+      .eq('customer_id', customer.id)
+      .neq('plan_id', planId)
+      .eq('status', 'active');
+
+    if (otherActiveSubs && otherActiveSubs.length > 0) {
+      const otherSubIds = otherActiveSubs.map((s) => s.id);
+      await supabase.from('subscriptions').update({ status: 'cancelled' }).in('id', otherSubIds);
+      await supabase.from('licenses').update({ status: 'cancelled' }).in('subscription_id', otherSubIds);
+    }
+
+    // 10. Check if customer already has an active subscription for this plan (RENEWAL)
     const { data: existingSub } = await supabase
       .from('subscriptions')
       .select('id, current_period_end')
@@ -142,6 +161,7 @@ export async function POST(request: Request) {
       const currentEnd = new Date(existingSub.current_period_end);
       const base = currentEnd > new Date() ? currentEnd : new Date();
       const newEnd = new Date(base.getTime() + 30 * 24 * 60 * 60 * 1000);
+
 
       await supabase.from('subscriptions').update({
         status: 'active',
@@ -169,7 +189,7 @@ export async function POST(request: Request) {
       subscriptionId = newSub.id;
     }
 
-    // 10. Create invoice — upsert on provider_invoice_id so a retried/duplicate POST
+    // 11. Create invoice — upsert on provider_invoice_id so a retried/duplicate POST
     //     (or a retry after partial failure further down) can't create two invoice rows
     //     for the same payment. Requires the unique constraint added in migration 012.
     await supabase.from('invoices').upsert({
@@ -179,7 +199,7 @@ export async function POST(request: Request) {
       status: 'paid',
     }, { onConflict: 'provider_invoice_id' });
 
-    // 11. Get or create license key
+    // 12. Get or create license key
     let rawKey: string | null = null;
     const { data: existingLicense } = await supabase
       .from('licenses')
@@ -200,7 +220,7 @@ export async function POST(request: Request) {
     }
     // On renewal rawKey stays null — we don't re-send the key, just confirm renewal
 
-    // 12. Send email
+    // 13. Send email
     const { data: userData } = await supabase.auth.admin.getUserById(userId);
     const email = userData?.user?.email;
     if (email) {
@@ -223,7 +243,7 @@ export async function POST(request: Request) {
       await sendEmailViaGraph(email, subject, html);
     }
 
-    // 13. Only now — after every provisioning step has succeeded — mark the checkout completed.
+    // 14. Only now — after every provisioning step has succeeded — mark the checkout completed.
     await supabase.from('pending_checkouts').update({ status: 'completed' }).eq('id', pending.id);
 
     return NextResponse.redirect(`${baseUrl}/app/billing?success=1`, 303);
