@@ -40,12 +40,27 @@ export async function POST(request: Request) {
 
     const supabase = createAdminClient();
 
-    // 2. Look up pending_checkout by txn_ref — NOT URL params
+    // 2. Replay protection — if this exact provider transaction already completed, redirect
+    //    idempotently instead of re-running provisioning. Must check BEFORE looking up by
+    //    txn_ref + status=pending, because a completed checkout no longer matches that filter.
+    if (tpslTxnId) {
+      const { data: dup } = await supabase
+        .from('pending_checkouts')
+        .select('id, status')
+        .eq('provider_txn_id', tpslTxnId)
+        .maybeSingle();
+
+      if (dup?.status === 'completed') {
+        return NextResponse.redirect(`${baseUrl}/app/billing?success=1`, 303);
+      }
+    }
+
+    // 3. Look up pending_checkout by txn_ref — NOT URL params
     const { data: pending, error: pendingErr } = await supabase
       .from('pending_checkouts')
       .select('*')
       .eq('txn_ref', txnRefNo)
-      .eq('status', 'pending')
+      .in('status', ['pending', 'processing'])
       .single();
 
     if (pendingErr || !pending) {
@@ -53,27 +68,32 @@ export async function POST(request: Request) {
       return NextResponse.redirect(`${baseUrl}/app/billing?error=invalid_txn`, 303);
     }
 
-    // 3. Verify amount matches what we expected
+    // 4. Verify amount matches exactly what we expected — no partial-payment acceptance
     const paidAmountInr = Math.round(parseFloat(txnAmt));
-    if (paidAmountInr < pending.expected_amount_inr) {
+    if (paidAmountInr !== pending.expected_amount_inr) {
       console.error(`[Paynimo Return] Amount mismatch: expected ${pending.expected_amount_inr}, got ${paidAmountInr}`);
       await supabase.from('pending_checkouts').update({ status: 'amount_mismatch' }).eq('id', pending.id);
       return NextResponse.redirect(`${baseUrl}/app/billing?error=amount_mismatch`, 303);
     }
 
-    // 4. Check expiry
+    // 5. Check expiry
     if (new Date(pending.expires_at) < new Date()) {
       await supabase.from('pending_checkouts').update({ status: 'expired' }).eq('id', pending.id);
       return NextResponse.redirect(`${baseUrl}/app/billing?error=expired`, 303);
     }
 
-    // 5. Mark pending checkout as completed
-    await supabase.from('pending_checkouts').update({ status: 'completed' }).eq('id', pending.id);
+    // 6. Mark as processing (NOT completed) and stamp the provider txn id for replay protection.
+    //    If a duplicate POST arrives for this txn_ref while we're mid-provisioning, the
+    //    status filter above (pending/processing) will still match it — that's fine, the
+    //    inserts below are all idempotent-safe upserts/lookups keyed by stable ids.
+    await supabase.from('pending_checkouts')
+      .update({ status: 'processing', provider_txn_id: tpslTxnId || null })
+      .eq('id', pending.id);
 
     const userId  = pending.user_id;
     const planId  = pending.plan_id;
 
-    // 6. Get plan details including max_sites
+    // 7. Get plan details including max_sites
     const { data: plan } = await supabase
       .from('plans')
       .select('id, name, max_sites')
@@ -82,7 +102,7 @@ export async function POST(request: Request) {
 
     if (!plan) throw new Error('Plan not found');
 
-    // 7. Ensure customer exists
+    // 8. Ensure customer exists
     let { data: customer } = await supabase
       .from('customers')
       .select('id')
@@ -102,7 +122,7 @@ export async function POST(request: Request) {
       customer = newCust;
     }
 
-    // 8. Check if customer already has an active subscription for this plan (RENEWAL)
+    // 9. Check if customer already has an active subscription for this plan (RENEWAL)
     const { data: existingSub } = await supabase
       .from('subscriptions')
       .select('id, current_period_end')
@@ -149,15 +169,17 @@ export async function POST(request: Request) {
       subscriptionId = newSub.id;
     }
 
-    // 9. Create invoice
-    await supabase.from('invoices').insert({
+    // 10. Create invoice — upsert on provider_invoice_id so a retried/duplicate POST
+    //     (or a retry after partial failure further down) can't create two invoice rows
+    //     for the same payment. Requires the unique constraint added in migration 012.
+    await supabase.from('invoices').upsert({
       customer_id: customer.id,
       provider_invoice_id: tpslTxnId || txnRefNo,
       amount: Math.round(parseFloat(txnAmt) * 100),
       status: 'paid',
-    });
+    }, { onConflict: 'provider_invoice_id' });
 
-    // 10. Get or create license key
+    // 11. Get or create license key
     let rawKey: string | null = null;
     const { data: existingLicense } = await supabase
       .from('licenses')
@@ -178,7 +200,7 @@ export async function POST(request: Request) {
     }
     // On renewal rawKey stays null — we don't re-send the key, just confirm renewal
 
-    // 11. Send email
+    // 12. Send email
     const { data: userData } = await supabase.auth.admin.getUserById(userId);
     const email = userData?.user?.email;
     if (email) {
@@ -200,6 +222,9 @@ export async function POST(request: Request) {
       console.log(`[EMAIL TO: ${email}]`, subject);
       await sendEmailViaGraph(email, subject, html);
     }
+
+    // 13. Only now — after every provisioning step has succeeded — mark the checkout completed.
+    await supabase.from('pending_checkouts').update({ status: 'completed' }).eq('id', pending.id);
 
     return NextResponse.redirect(`${baseUrl}/app/billing?success=1`, 303);
 

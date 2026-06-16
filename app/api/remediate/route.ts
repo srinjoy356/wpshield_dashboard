@@ -1,9 +1,24 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import { getCurrentProfile } from "@/lib/queries/profile";
+import { logActivity } from "@/lib/activity";
 import { safeFetch } from "@/lib/security/ssrf";
 
 export async function POST(req: Request) {
   try {
+    // This route had no authentication check at all, and middleware.ts's matcher
+    // explicitly excludes everything under /api — so it was reachable by anyone on the
+    // internet who knew or guessed the URL, with company_id and file_path taken
+    // straight from the request body. That's an unauthenticated arbitrary-file-deletion
+    // primitive against any customer's WordPress site. Gating it the same way the other
+    // admin-only mutating routes do (e.g. app/api/admin/plugin/upload/route.ts).
+    const supabase = createClient();
+    const profile  = await getCurrentProfile(supabase);
+    if (!profile || !["admin", "super_admin"].includes(profile.role)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
     const body = await req.json();
     const { action, company_id, file_path, file_hash } = body;
 
@@ -68,27 +83,45 @@ export async function POST(req: Request) {
       }, { status: wpResponse.status });
     }
 
-    // 3. Log the activity
     let actionStr = "";
     if (action === "delete_file") actionStr = "Deleted malware file";
     else if (action === "quarantine_file") actionStr = "Quarantined malware file";
 
-    await admin.from("wpshield_user_activity").insert({
-      company_id,
-      user_name: "MSSP Analyst",
-      user_email: "analyst@mssp.com",
-      action: actionStr,
-      details: `${actionStr}: ${file_path} (A backup was automatically created on the server prior to this action)`,
-      ip_address: "Dashboard",
+    // 3. Log the activity — wpshield_user_activity (the previous target) doesn't exist
+    //    anywhere on the live database; this insert was failing silently every time
+    //    (no error check on the original bare `await`). activity_logs is the real,
+    //    already-displayed admin activity log (see lib/queries/activity.ts), and now
+    //    that this route actually authenticates the caller, profile.id is a real actor
+    //    to attribute the action to instead of the hardcoded "MSSP Analyst" placeholder.
+    await logActivity(admin, profile.id, actionStr, company_id, {
+      file_path,
+      file_hash: file_hash || null,
+      note: "A backup was automatically created on the server prior to this action",
     });
 
-    // 4. Update the FIM alert status to resolved
+    // 4. Mark the file-integrity alert resolved — wpshield_fim_events (the previous
+    //    target) doesn't exist either. File-integrity alerts actually live in the
+    //    generic alerts table (see create_alert_from_file_event and the source_table
+    //    filtering already used in app/api/cron/hardening-audit/route.ts), referencing
+    //    the triggering row in wpshield_events_file via source_event_id. Resolve by
+    //    finding that row via company_id + path, then resolving any open alert(s)
+    //    that point back to it.
     if (file_hash) {
-      await admin
-        .from("wpshield_fim_events")
-        .update({ status: "resolved" })
+      const { data: fileEvents } = await admin
+        .from("wpshield_events_file")
+        .select("id")
         .eq("company_id", company_id)
-        .eq("file_path", file_path);
+        .eq("path", file_path);
+
+      const eventIds = (fileEvents || []).map((e) => e.id);
+      if (eventIds.length > 0) {
+        await admin
+          .from("alerts")
+          .update({ status: "resolved", resolved_at: new Date().toISOString() })
+          .eq("company_id", company_id)
+          .eq("source_table", "wpshield_events_file")
+          .in("source_event_id", eventIds);
+      }
     }
 
     return NextResponse.json({ success: true, message: result.message });

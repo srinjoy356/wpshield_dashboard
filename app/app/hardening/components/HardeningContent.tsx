@@ -158,11 +158,7 @@ export function HardeningContent({ companyId, initialResults, evidence }: Harden
   const handleRunAudit = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/cron/hardening-audit", {
-        headers: {
-          "x-cron-secret": "wpshield-cron-2024",
-        },
-      });
+      const res = await fetch("/api/cron/hardening-audit");
       const data = await res.json();
       if (data.success) {
         const { data: newResults } = await supabase

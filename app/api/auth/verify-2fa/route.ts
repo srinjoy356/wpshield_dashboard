@@ -1,10 +1,21 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit } from '@/lib/security/rate-limit';
 import crypto from 'crypto';
 
+function hashOtp(code: string): string {
+  const pepper = process.env.MFA_OTP_PEPPER;
+  if (!pepper) throw new Error('MFA_OTP_PEPPER is required');
+  return crypto.createHmac('sha256', pepper).update(code).digest('hex');
+}
+
 function sign2FAToken(userId: string): string {
-  const secret = process.env.MFA_COOKIE_SECRET || process.env.CRON_SECRET;
+  // MFA_COOKIE_SECRET must be its own dedicated secret — it must NEVER fall back to
+  // CRON_SECRET. CRON_SECRET was previously exposed client-side (see HardeningContent.tsx
+  // fix), so sharing it with the 2FA cookie signing key would let anyone who saw that
+  // browser-bundle string forge a valid 2FA-verified session cookie.
+  const secret = process.env.MFA_COOKIE_SECRET;
   if (!secret) throw new Error('MFA_COOKIE_SECRET is required');
   const timestamp = Date.now().toString();
   const payload   = `${userId}:${timestamp}`;
@@ -17,7 +28,16 @@ export async function POST(request: Request) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const rate = await checkRateLimit('mfa', user.id);
+  if (!rate.success) {
+    return NextResponse.json({ error: "Too many attempts. Please wait before trying again." }, { status: 429 });
+  }
+
   const { code } = await request.json();
+  if (!code || typeof code !== 'string') {
+    return NextResponse.json({ error: "Invalid or expired code" }, { status: 400 });
+  }
+
   const admin = createAdminClient();
 
   const { data: mfa } = await admin.from('mfa_codes')
@@ -27,10 +47,27 @@ export async function POST(request: Request) {
 
   if (!mfa) return NextResponse.json({ error: "Invalid or expired code" }, { status: 400 });
 
-  const isCodeMatch = mfa.code === code;
-  const isExpired   = new Date(mfa.expires_at) < new Date();
+  const isExpired = new Date(mfa.expires_at) < new Date();
+  if (isExpired) {
+    await admin.from('mfa_codes').delete().eq('user_id', user.id);
+    return NextResponse.json({ error: "Invalid or expired code" }, { status: 400 });
+  }
 
-  if (!isCodeMatch || isExpired) {
+  if ((mfa.attempts ?? 0) >= 5) {
+    return NextResponse.json({ error: "Too many failed attempts. Request a new code." }, { status: 429 });
+  }
+
+  const submittedHash = hashOtp(code);
+  const storedBuf    = Buffer.from(mfa.code, 'hex');
+  const submittedBuf = Buffer.from(submittedHash, 'hex');
+
+  // timingSafeEqual throws if buffer lengths differ — both are fixed-length sha256 hex
+  // digests under normal operation, but guard it defensively anyway.
+  const isCodeMatch = storedBuf.length === submittedBuf.length &&
+    crypto.timingSafeEqual(storedBuf, submittedBuf);
+
+  if (!isCodeMatch) {
+    await admin.from('mfa_codes').update({ attempts: (mfa.attempts ?? 0) + 1 }).eq('user_id', user.id);
     return NextResponse.json({ error: "Invalid or expired code" }, { status: 400 });
   }
 

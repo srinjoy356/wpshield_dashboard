@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { CheckoutButton } from "./checkout-button";
 import { CheckCircle, Shield, Zap } from "lucide-react";
@@ -56,8 +57,11 @@ export default async function AppBillingPage() {
       subscription  = subData;
       currentPlan   = Array.isArray(subData.plan) ? subData.plan[0] : subData.plan;
 
-      // Get license key (masked)
-      const { data: lic } = await supabase
+      // Get license key (masked) — licenses has no authenticated-read RLS policy
+      // (migration 016 locks it to service_role only), so this must go through the
+      // admin client rather than the session client used for everything else on this page.
+      const adminSupabase = createAdminClient();
+      const { data: lic } = await adminSupabase
         .from("licenses")
         .select("id, status, key_hash")
         .eq("subscription_id", subData.id)
@@ -175,7 +179,7 @@ export default async function AppBillingPage() {
                     Current Plan — renews {new Date(subscription.current_period_end).toLocaleDateString()}
                   </div>
                 ) : (
-                  <CheckoutButton planId={p.id} userEmail={user.email!} userId={user.id}/>
+                  <CheckoutButton planId={p.id}/>
                 )}
               </div>
             );

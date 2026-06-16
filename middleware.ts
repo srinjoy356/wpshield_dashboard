@@ -91,7 +91,7 @@ export async function middleware(request: NextRequest) {
     let is2FAValid = false;
     if (has2fa?.value) {
       try {
-        const secret = process.env.MFA_COOKIE_SECRET || process.env.CRON_SECRET || "";
+        const secret = process.env.MFA_COOKIE_SECRET || "";
         if (secret) {
           const decoded = atob(has2fa.value.replace(/%3D/g, '='));
           const lastColon = decoded.lastIndexOf(':');

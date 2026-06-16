@@ -1,17 +1,66 @@
 /**
- * Rate limiting — disabled for launch.
+ * Rate limiting — in-memory via rate-limiter-flexible.
  *
- * The ingest endpoints receive pre-filtered attack traffic only (PHP
- * pattern matching on the WordPress side means only ~1% of requests
- * ever reach the dashboard). Volume is low enough that rate limiting
- * adds no value at this stage and would require Redis infrastructure.
+ * No external service required (unlike the previous Upstash-backed version) — this
+ * runs entirely inside the Node process, so there's nothing new to provision and no
+ * new env vars.
  *
- * To re-enable: replace this file with the Upstash Redis implementation.
+ * Trade-off worth knowing: if this app ever runs as more than one instance/process at
+ * once (scaling to multiple Render instances, a serverless deployment with several
+ * concurrent isolates, etc.), each instance keeps its own independent counters. A limit
+ * of "5 per 10 minutes" effectively becomes "5 per 10 minutes, per instance" — someone
+ * hitting different instances behind a load balancer could exceed the intended global
+ * limit. For a single-instance deployment (the common case for an app this size) that
+ * doesn't matter at all. If you do scale out later, rate-limiter-flexible ships
+ * matching Redis/Mongo/MySQL-backed limiters (e.g. RateLimiterRedis) with the same
+ * `.consume()` API — swapping the store later is a change inside this file only;
+ * nothing in `checkRateLimit`'s signature changes, so no call site needs touching.
+ *
+ * Call sites (unchanged by this swap):
+ *   app/api/billing/paynimo-checkout/route.ts
+ *   app/api/auth/send-2fa/route.ts
+ *   app/api/auth/verify-2fa/route.ts
+ *   app/api/license/activate/route.ts
+ *   app/api/ingest/events/route.ts
+ *   app/api/ingest/heartbeat/route.ts
+ *   app/api/ingest/inventory/route.ts
+ *   app/api/ingest/waf/route.ts
  */
+import { RateLimiterMemory } from 'rate-limiter-flexible';
+
+const limiters = {
+  mfa:        new RateLimiterMemory({ points: 5,   duration: 600 }),   // 5 per 10 min
+  checkout:   new RateLimiterMemory({ points: 3,   duration: 3600 }),  // 3 per hour
+  activation: new RateLimiterMemory({ points: 10,  duration: 3600 }),  // 10 per hour
+  ingest:     new RateLimiterMemory({ points: 300, duration: 60 }),    // 300 per min
+};
+
+export type RateLimitType = keyof typeof limiters;
+
 export async function checkRateLimit(
-  _identifier: string,
-  _limit: number,
-  _windowSeconds: number
+  type: RateLimitType,
+  identifier: string
 ): Promise<{ success: boolean; retryAfter?: number }> {
-  return { success: true };
+  try {
+    await limiters[type].consume(identifier, 1);
+    return { success: true };
+  } catch (rejected) {
+    // rate-limiter-flexible rejects the promise both when the limit is hit (the
+    // expected "blocked" path, with a RateLimiterRes object) and on a genuine internal
+    // error (an actual Error instance) — these need different handling, or a real bug
+    // silently gets treated as "user is just rate limited".
+    if (rejected instanceof Error) {
+      console.error('[rate-limit] Unexpected error, failing open:', rejected);
+      return { success: true };
+    }
+    const res = rejected as { msBeforeNext: number };
+    return { success: false, retryAfter: Math.max(1, Math.ceil(res.msBeforeNext / 1000)) };
+  }
+}
+
+/** Best-effort client identifier for unauthenticated routes — IP first, fallback to UA. */
+export function getClientIdentifier(request: Request): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return request.headers.get('user-agent') || 'unknown';
 }

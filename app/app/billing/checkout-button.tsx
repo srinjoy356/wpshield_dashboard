@@ -3,9 +3,7 @@
 import { useState } from "react";
 import Script from "next/script";
 
-export function CheckoutButton({ planId, userEmail, userId }: {
-  planId: string; userEmail: string; userId: string;
-}) {
+export function CheckoutButton({ planId }: { planId: string }) {
   const [loading, setLoading] = useState(false);
 
   const handleCheckout = async () => {
@@ -14,7 +12,7 @@ export function CheckoutButton({ planId, userEmail, userId }: {
       const res = await fetch("/api/billing/paynimo-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan_code: planId, customer_email: userEmail, user_id: userId }),
+        body: JSON.stringify({ plan_code: planId }),
       });
       const data = await res.json();
       if (data.reqJson) {

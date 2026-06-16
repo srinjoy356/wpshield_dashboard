@@ -1,0 +1,183 @@
+{
+  "checked_at": "2026-06-17T03:57:13.622817",
+  "new_columns": {
+    "plans.active": true,
+    "pending_checkouts.provider_txn_id": true,
+    "site_tokens.last_used_at": true,
+    "plugin_releases.signature": true
+  },
+  "policies_by_table": {
+    "customers": [
+      {
+        "name": "customers_owner_read",
+        "roles": [
+          "authenticated"
+        ],
+        "command": "SELECT"
+      },
+      {
+        "name": "customers_service_role",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ],
+    "entitlements": [
+      {
+        "name": "entitlements_service_role",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ],
+    "invoices": [
+      {
+        "name": "invoices_owner_read",
+        "roles": [
+          "authenticated"
+        ],
+        "command": "SELECT"
+      },
+      {
+        "name": "invoices_service_role",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ],
+    "licenses": [
+      {
+        "name": "licenses_service_role",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ],
+    "mfa_codes": [
+      {
+        "name": "mfa_codes_service_role",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ],
+    "pending_checkouts": [
+      {
+        "name": "pending_checkouts_owner_read",
+        "roles": [
+          "authenticated"
+        ],
+        "command": "SELECT"
+      },
+      {
+        "name": "pending_checkouts_service_role",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ],
+    "plans": [
+      {
+        "name": "Plans are publicly readable",
+        "roles": [
+          "public"
+        ],
+        "command": "SELECT"
+      },
+      {
+        "name": "Service role manages plans",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ],
+    "plugin_releases": [
+      {
+        "name": "plugin_releases_admin_read",
+        "roles": [
+          "authenticated"
+        ],
+        "command": "SELECT"
+      },
+      {
+        "name": "plugin_releases_service_role",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ],
+    "site_tokens": [
+      {
+        "name": "site_tokens_service_role",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ],
+    "sites": [
+      {
+        "name": "sites_admin_all",
+        "roles": [
+          "authenticated"
+        ],
+        "command": "ALL"
+      },
+      {
+        "name": "sites_owner_read",
+        "roles": [
+          "authenticated"
+        ],
+        "command": "SELECT"
+      },
+      {
+        "name": "sites_service_role",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ],
+    "subscriptions": [
+      {
+        "name": "subscriptions_admin_all",
+        "roles": [
+          "authenticated"
+        ],
+        "command": "ALL"
+      },
+      {
+        "name": "subscriptions_owner_read",
+        "roles": [
+          "authenticated"
+        ],
+        "command": "SELECT"
+      },
+      {
+        "name": "subscriptions_service_role",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ],
+    "webhook_events": [
+      {
+        "name": "webhook_events_service_role",
+        "roles": [
+          "service_role"
+        ],
+        "command": "ALL"
+      }
+    ]
+  },
+  "policy_count": 21
+}

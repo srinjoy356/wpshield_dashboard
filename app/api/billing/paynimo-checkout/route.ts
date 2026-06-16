@@ -1,20 +1,37 @@
 import { NextResponse } from 'next/server';
 import { Paynimo } from '@/lib/billing/paynimo';
+import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
-    const { plan_code, customer_email, user_id } = await request.json();
-    if (!plan_code || !customer_email || !user_id) {
+    // 0. Session is the only source of truth for identity — never trust the body for this.
+    const supabase = createClient();
+    const { data: { user }, error: authErr } = await supabase.auth.getUser();
+    if (authErr || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const rate = await checkRateLimit('checkout', user.id);
+    if (!rate.success) {
+      return NextResponse.json({ error: 'Too many checkout attempts. Please try again later.' }, { status: 429 });
+    }
+
+    const { plan_code } = await request.json();
+    if (!plan_code) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const supabase = createAdminClient();
+    const user_id = user.id;
+    const customer_email = user.email!;
+
+    const admin = createAdminClient();
 
     // Server loads price — client never sets the amount
-    const { data: plan, error: planErr } = await supabase
+    const { data: plan, error: planErr } = await admin
       .from('plans')
       .select('id, name, price_inr_test, max_sites')
       .eq('id', plan_code)
@@ -24,12 +41,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
     }
 
-    const amount    = plan.price_inr_test; // ₹1 for starter, ₹5 for growth
+    const amount    = plan.price_inr_test; // ₹1 for starter, ₹5 for growth — test pricing, kept intentionally
     const txnRefNo  = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 min expiry
 
     // Create pending checkout record — return handler verifies against this
-    const { error: pcErr } = await supabase.from('pending_checkouts').insert({
+    const { error: pcErr } = await admin.from('pending_checkouts').insert({
       user_id,
       plan_id:              plan.id,
       txn_ref:              txnRefNo,

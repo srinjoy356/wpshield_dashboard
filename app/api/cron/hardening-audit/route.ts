@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -11,20 +13,41 @@ function getMaturity(score: number): string {
   return "Excellent";
 }
 
+async function isAuthorized(request: Request): Promise<boolean> {
+  // Path 1 — the scheduled GitHub Actions cron job, authenticated with CRON_SECRET.
+  // This secret lives only in GitHub's encrypted repo secrets + the Render env — it is
+  // never sent to a browser. Compared with timingSafeEqual for consistency with the rest
+  // of the codebase's secret-comparison style (see verify-2fa).
+  const secretHeader = request.headers.get("x-cron-secret");
+  const cronSecret = process.env.CRON_SECRET;
+  if (secretHeader && cronSecret) {
+    const a = Buffer.from(secretHeader);
+    const b = Buffer.from(cronSecret);
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return true;
+  }
+
+  // Path 2 — a logged-in admin/super_admin manually clicking "Run Audit" in the dashboard.
+  // No secret is sent from the browser for this path at all.
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+
+  const admin = createAdminClient();
+  const { data: profile } = await admin.from('user_profiles').select('role').eq('id', user.id).single();
+  return !!profile && ['admin', 'super_admin'].includes(profile.role);
+}
+
 export async function GET(request: Request) {
   console.log('[Audit] Started:', Date.now());
   try {
-    // 1. Secure route with x-cron-secret header check
-    const secretHeader = request.headers.get("x-cron-secret");
-    const cronSecret = process.env.CRON_SECRET;
-    if (!cronSecret) {
+    if (!process.env.CRON_SECRET) {
       return NextResponse.json(
         { error: "Server misconfiguration: CRON_SECRET is not set" },
         { status: 500 }
       );
     }
 
-    if (!secretHeader || secretHeader !== cronSecret) {
+    if (!(await isAuthorized(request))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

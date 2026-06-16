@@ -39,5 +39,5 @@ next-env.d.ts
 .env.local
 public/uploads/releases/*.zip
 
-check.py
-simulate.py
+/check.py
+/simulate.py

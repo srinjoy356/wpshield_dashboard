@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { checkRateLimit, getClientIdentifier } from '@/lib/security/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: Request) {
   try {
+    const rate = await checkRateLimit('activation', getClientIdentifier(request));
+    if (!rate.success) {
+      return NextResponse.json({ error: 'Too many activation attempts. Please try again later.' }, { status: 429 });
+    }
+
     const { license_key, site_url } = await request.json();
     if (!license_key || !site_url) {
       return NextResponse.json({ error: 'Missing license_key or site_url' }, { status: 400 });
@@ -28,7 +34,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid or inactive license' }, { status: 401 });
     }
 
-    // 2. Resolve company — fail hard if not found (no default_company_id fallback)
+    // 2. Verify the subscription itself is actually active and not past its period end.
+    //    A license row can be left status='active' while the underlying subscription has
+    //    lapsed (past_due, cancelled, or simply expired) — that must block new activations.
+    const { data: subForCheck } = await supabase
+      .from('subscriptions')
+      .select('status, current_period_end')
+      .eq('id', license.subscription_id)
+      .single();
+
+    const isSubActive = subForCheck?.status === 'active' &&
+      !!subForCheck.current_period_end &&
+      new Date(subForCheck.current_period_end) > new Date();
+
+    if (!isSubActive) {
+      return NextResponse.json({ error: 'Subscription is expired or inactive' }, { status: 403 });
+    }
+
+    // 3. Resolve company — fail hard if not found (no default_company_id fallback)
     const { data: sub } = await supabase
       .from('subscriptions')
       .select('customer_id')
@@ -53,13 +76,18 @@ export async function POST(request: Request) {
 
     const company_id = userProfile.company_id;
 
-    // 3. Normalize domain for dedup check
-    const normalized_domain = site_url
-      .replace(/^https?:\/\/(www\.)?/, '')
-      .replace(/\/.*$/, '')
-      .toLowerCase();
+    // 4. Normalize domain for dedup check — use the URL parser instead of a regex so
+    //    ports, IDNA/punycode hosts, double slashes, and malformed input are all handled
+    //    the same way the browser/WordPress itself would interpret the URL.
+    let normalized_domain: string;
+    try {
+      const parsedUrl = new URL(site_url.startsWith('http') ? site_url : `https://${site_url}`);
+      normalized_domain = parsedUrl.hostname.toLowerCase().replace(/^www\./, '');
+    } catch {
+      return NextResponse.json({ error: 'Invalid site URL' }, { status: 400 });
+    }
 
-    // 4. Check if this domain is already active on this license
+    // 5. Check if this domain is already active on this license
     const { data: existingSite } = await supabase
       .from('sites')
       .select('id, is_active')
@@ -69,17 +97,7 @@ export async function POST(request: Request) {
 
     if (existingSite) {
       if (existingSite.is_active) {
-        // Already active — return existing token instead of creating duplicate
-        const { data: existingToken } = await supabase
-          .from('site_tokens')
-          .select('token_prefix')
-          .eq('site_id', existingSite.id)
-          .eq('revoked', false)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        // Revoke old tokens and issue new one
+        // Already active — revoke old tokens and issue a new one
         await supabase.from('site_tokens').update({ revoked: true }).eq('site_id', existingSite.id);
         const rawToken  = crypto.randomBytes(32).toString('hex');
         const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
@@ -103,7 +121,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 5. Check plan site limit
+    // 6. Check plan site limit
     const maxSites = license.max_sites ?? 1;
     const { count: activeCount } = await supabase
       .from('sites')
@@ -117,7 +135,7 @@ export async function POST(request: Request) {
       }, { status: 403 });
     }
 
-    // 6. Register new site
+    // 7. Register new site
     const { data: site, error: siteError } = await supabase
       .from('sites')
       .insert({ company_id, license_id: license.id, url: site_url, normalized_domain, is_active: true })
@@ -126,7 +144,7 @@ export async function POST(request: Request) {
 
     if (siteError) throw siteError;
 
-    // 7. Generate site token
+    // 8. Generate site token
     const rawToken  = crypto.randomBytes(32).toString('hex');
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
     await supabase.from('site_tokens').insert({

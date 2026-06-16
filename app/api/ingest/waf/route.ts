@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { verifySiteToken } from '@/lib/security/guards';
 import { evaluateShadowPayload } from '@/lib/security/waf-engine';
+import { checkRateLimit } from '@/lib/security/rate-limit';
 
 /**
  * POST /api/ingest/waf
@@ -16,6 +17,11 @@ export async function POST(request: Request) {
     const auth = await verifySiteToken(request);
     if (auth.error || !auth.site) {
       return NextResponse.json({ error: auth.error ?? 'Unauthorized' }, { status: auth.status ?? 401 });
+    }
+
+    const rate = await checkRateLimit('ingest', auth.site_id!);
+    if (!rate.success) {
+      return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
     }
 
     const payload = await request.json();
