@@ -29,10 +29,10 @@
 import { RateLimiterMemory } from 'rate-limiter-flexible';
 
 const limiters = {
-  mfa:        new RateLimiterMemory({ points: 5,   duration: 600 }),   // 5 per 10 min
-  checkout:   new RateLimiterMemory({ points: 3,   duration: 3600 }),  // 3 per hour
-  activation: new RateLimiterMemory({ points: 10,  duration: 3600 }),  // 10 per hour
-  ingest:     new RateLimiterMemory({ points: 300, duration: 60 }),    // 300 per min
+  mfa:        new RateLimiterMemory({ points: 30,    duration: 600 }),   // 30 per 10 min
+  checkout:   new RateLimiterMemory({ points: 30,    duration: 3600 }),  // 30 per hour
+  activation: new RateLimiterMemory({ points: 30,    duration: 3600 }),  // 30 per hour
+  ingest:     new RateLimiterMemory({ points: 10000, duration: 60 }),    // 10000 per min
 };
 
 export type RateLimitType = keyof typeof limiters;
