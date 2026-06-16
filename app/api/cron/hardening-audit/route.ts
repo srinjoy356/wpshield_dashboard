@@ -13,28 +13,51 @@ function getMaturity(score: number): string {
   return "Excellent";
 }
 
-async function isAuthorized(request: Request): Promise<boolean> {
+type AuditAuth =
+  | { scope: "all" }
+  | { scope: "one"; companyId: string };
+
+async function getAuditAuth(request: Request): Promise<AuditAuth | null> {
   // Path 1 — the scheduled GitHub Actions cron job, authenticated with CRON_SECRET.
   // This secret lives only in GitHub's encrypted repo secrets + the Render env — it is
   // never sent to a browser. Compared with timingSafeEqual for consistency with the rest
-  // of the codebase's secret-comparison style (see verify-2fa).
+  // of the codebase's secret-comparison style (see verify-2fa). Runs for every company.
   const secretHeader = request.headers.get("x-cron-secret");
   const cronSecret = process.env.CRON_SECRET;
   if (secretHeader && cronSecret) {
     const a = Buffer.from(secretHeader);
     const b = Buffer.from(cronSecret);
-    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return true;
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return { scope: "all" };
   }
 
-  // Path 2 — a logged-in admin/super_admin manually clicking "Run Audit" in the dashboard.
-  // No secret is sent from the browser for this path at all.
+  // Any other caller must be a logged-in user — no secret sent from the browser here.
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return false;
+  if (!user) return null;
 
   const admin = createAdminClient();
-  const { data: profile } = await admin.from('user_profiles').select('role').eq('id', user.id).single();
-  return !!profile && ['admin', 'super_admin'].includes(profile.role);
+  const { data: profile } = await admin
+    .from('user_profiles')
+    .select('role, company_id')
+    .eq('id', user.id)
+    .single();
+  if (!profile) return null;
+
+  // Path 2 — an admin/super_admin manually running an audit. Runs for every company,
+  // same as the cron path.
+  if (['admin', 'super_admin'].includes(profile.role)) return { scope: "all" };
+
+  // Path 3 — a regular client clicking "Run Audit Now" on their own /app/hardening
+  // page (see handleRunAudit in HardeningContent.tsx). This previously worked only
+  // because a CRON_SECRET was hardcoded in that same client-side file — which let
+  // *anyone*, not just this client, trigger a full run across every company in the
+  // system. Scoping this to exactly the caller's own company_id both closes that leak
+  // and is the behavior the button was actually supposed to have.
+  if (profile.role === 'client' && profile.company_id) {
+    return { scope: "one", companyId: profile.company_id };
+  }
+
+  return null;
 }
 
 export async function GET(request: Request) {
@@ -47,17 +70,25 @@ export async function GET(request: Request) {
       );
     }
 
-    if (!(await isAuthorized(request))) {
+    const auth = await getAuditAuth(request);
+    if (!auth) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const supabase = createAdminClient();
 
-    // 2. Fetch all active companies
-    const { data: companies, error: companiesError } = await supabase
+    // 2. Fetch active companies — every one of them for cron/admin, only the caller's
+    //    own for a client-scoped request.
+    let companiesQuery = supabase
       .from("companies")
       .select("id, company_id, display_name, site_url, status, uptime_status, uptime_response_ms, last_uptime_check, last_seen_at")
       .eq("status", "active");
+
+    if (auth.scope === "one") {
+      companiesQuery = companiesQuery.eq("company_id", auth.companyId);
+    }
+
+    const { data: companies, error: companiesError } = await companiesQuery;
 
     console.log('[Audit] Companies fetched:', Date.now());
 
