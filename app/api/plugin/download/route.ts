@@ -38,7 +38,16 @@ export async function GET(request: Request) {
       .createSignedUrl(filename, 300);
 
     if (error || !signed) {
-      return NextResponse.json({ error: 'File not found' }, { status: 404 });
+      // Don't collapse every failure mode into "File not found" — a missing file, a
+      // missing bucket, and an invalid/rotated service role key all hit this same
+      // branch and are NOT the same problem. Logging (and returning, since we're
+      // already past the admin-only auth check above) the real Supabase error is the
+      // only way to tell them apart instead of guessing.
+      console.error('[Plugin Download] storage.createSignedUrl failed:', error);
+      return NextResponse.json({
+        error: 'File not found',
+        detail: error?.message || 'createSignedUrl returned no data and no error',
+      }, { status: 404 });
     }
 
     return NextResponse.redirect(signed.signedUrl);
