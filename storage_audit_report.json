@@ -1,0 +1,24 @@
+{
+    "audited_at": "2026-06-17T14:37:42.254623",
+    "bucket_exists": false,
+    "bucket_details": null,
+    "storage_objects_found": [],
+    "database_records": [
+        {
+            "id": "cc3eb356-ffbc-44fe-9a22-88fe46edb9ea",
+            "version": "3.1.1",
+            "zip_path": "/opt/render/project/src/public/uploads/releases/cybernara-wpshield-3.1.1.zip",
+            "zip_url": "https://wpshield-dashboard.onrender.com/api/plugin/download?file=cybernara-wpshield-3.1.1.zip",
+            "is_latest": true,
+            "released_at": "2026-06-17 09:05:53.531182+00:00"
+        }
+    ],
+    "path_alignment_matches": [
+        {
+            "version": "3.1.1",
+            "expected_name": "/opt/render/project/src/public/uploads/releases/cybernara-wpshield-3.1.1.zip",
+            "actual_object_name": null,
+            "exact_match": null
+        }
+    ]
+}
