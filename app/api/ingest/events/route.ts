@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     if (eventType === 'attack') {
       const { error } = await supabase.from('wpshield_events_attack').insert({
         company_id:   auth.site.company_id,
+        site_id:      auth.site_id,
         site_url:     payload.site_url || 'unknown',
         severity:     payload.severity || 'low',
         pattern_type: payload.data?.pattern_type || payload.pattern_type || 'unknown',
@@ -56,6 +57,7 @@ export async function POST(request: Request) {
       if (payload.data?.request_body || payload.data?.request_uri) {
         evaluateShadowPayload(
           auth.site.company_id,
+          auth.site_id ?? null,
           payload.data?.ip || payload.ip || '127.0.0.1',
           payload.data?.request_method || 'POST',
           payload.data?.request_uri    || '/',
@@ -69,6 +71,7 @@ export async function POST(request: Request) {
     } else if (eventType === 'file') {
       const { error } = await supabase.from('wpshield_events_file').insert({
         company_id:  auth.site.company_id,
+        site_id:     auth.site_id,
         site_url:    payload.site_url || 'unknown',
         severity:    payload.severity || 'low',
         path:        payload.data?.path  || 'unknown',
@@ -80,6 +83,7 @@ export async function POST(request: Request) {
     } else if (eventType === 'activity' || eventType === 'login') {
       const { error } = await supabase.from('wpshield_events_activity').insert({
         company_id:  auth.site.company_id,
+        site_id:     auth.site_id,
         site_url:    payload.site_url || 'unknown',
         severity:    payload.severity || 'low',
         action_type: payload.data?.action_type || payload.data?.event || payload.action_type || 'unknown',
@@ -94,6 +98,7 @@ export async function POST(request: Request) {
     } else if (eventType === 'inventory' || eventType === 'health') {
       const { error } = await supabase.from('wpshield_inventory_snapshots').insert({
         company_id:  auth.site.company_id,
+        site_id:     auth.site_id,
         site_url:    payload.site_url || 'unknown',
         severity:    payload.severity || 'info',
         kind:        payload.data?.kind || 'plugins',

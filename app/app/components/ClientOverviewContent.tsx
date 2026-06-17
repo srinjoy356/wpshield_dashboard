@@ -17,6 +17,7 @@ interface RecentEvent {
   occurred_at: string;
   label: string;
   detail: string;
+  site_url: string | null;
   type: "attack" | "login" | "file";
 }
 
@@ -30,17 +31,19 @@ interface ClientOverviewContentProps {
     filesToday: number;
     inventoryToday: number;
     lastSeen: string | null;
-    safebrowsingStatus: string;
-    lastSafebrowsingCheck: string | null;
   };
   timeData: TimeSeriesPoint[];
   severityData: SeverityCount[];
   totalSeverity: number;
-  initialCompanyUptime: {
-    uptime_status: string | null;
-    uptime_response_ms: number | null;
-    last_uptime_check: string | null;
-  } | null;
+  // Already aggregated across every active site under this company (worst-case for
+  // status, most-recent for the check time) — not a single shared companies row,
+  // which stops being updated once a company has activated any real site.
+  initialUptime: {
+    status: string;
+    responseMs: number;
+    lastCheck: string | null;
+  };
+  sitesSummary: { total: number; up: number };
   recentEvents: RecentEvent[];
   hardeningScore: number;
   safebrowsingStatus: string;
@@ -53,7 +56,8 @@ export function ClientOverviewContent({
   timeData,
   severityData,
   totalSeverity,
-  initialCompanyUptime,
+  initialUptime,
+  sitesSummary,
   recentEvents,
   hardeningScore,
   safebrowsingStatus,
@@ -61,37 +65,64 @@ export function ClientOverviewContent({
 }: ClientOverviewContentProps) {
   const supabase = useMemo(() => createClient(), []);
 
-  const [uptimeStatus, setUptimeStatus] = useState(initialCompanyUptime?.uptime_status || "unknown");
-  const [uptimeResponseMs, setUptimeResponseMs] = useState(initialCompanyUptime?.uptime_response_ms || 0);
-  const [lastUptimeCheck, setLastUptimeCheck] = useState(initialCompanyUptime?.last_uptime_check);
-  
+  const [uptimeStatus, setUptimeStatus] = useState(initialUptime.status);
+  const [uptimeResponseMs, setUptimeResponseMs] = useState(initialUptime.responseMs);
+  const [lastUptimeCheck, setLastUptimeCheck] = useState(initialUptime.lastCheck);
+  const [sitesUp, setSitesUp] = useState(sitesSummary.up);
+  const [sitesTotal, setSitesTotal] = useState(sitesSummary.total);
+
   const [liveEvents, setLiveEvents] = useState<RecentEvent[]>(recentEvents);
+
+  // Recomputes the same worst-case-wins rollup used on first load — any update to
+  // a site's status (or, for legacy companies with no real sites yet, the company
+  // row itself) re-derives the aggregate rather than overwriting it with whatever
+  // single row happened to change, which would be wrong the moment more than one
+  // site exists.
+  const refreshUptimeRollup = async () => {
+    const { data: activeSites } = await supabase
+      .from("sites")
+      .select("uptime_status, uptime_response_ms, last_uptime_check")
+      .eq("company_id", companyId)
+      .eq("is_active", true);
+
+    let rows = activeSites || [];
+    if (rows.length === 0) {
+      const { data: company } = await supabase
+        .from("companies")
+        .select("uptime_status, uptime_response_ms, last_uptime_check")
+        .eq("company_id", companyId)
+        .single();
+      rows = company ? [company] : [];
+    }
+
+    const statuses = rows.map((r) => r.uptime_status).filter(Boolean) as string[];
+    setUptimeStatus(
+      statuses.includes("down") ? "down" : statuses.length > 0 && statuses.every((s) => s === "up") ? "up" : "unknown"
+    );
+    const responseTimes = rows.map((r) => r.uptime_response_ms).filter((v): v is number => v != null);
+    setUptimeResponseMs(
+      responseTimes.length > 0 ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) : 0
+    );
+    const checkTimes = rows.map((r) => r.last_uptime_check).filter(Boolean) as string[];
+    setLastUptimeCheck(
+      checkTimes.length > 0 ? checkTimes.reduce((latest, c) => (new Date(c) > new Date(latest) ? c : latest)) : null
+    );
+    setSitesUp(rows.filter((r) => r.uptime_status === "up").length);
+    setSitesTotal(rows.length);
+  };
 
   useEffect(() => {
     const channel = supabase
       .channel("company-realtime")
       .on(
         "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "companies",
-          filter: `company_id=eq.${companyId}`,
-        },
-        (payload) => {
-          const updatedCompany = payload.new as any;
-          if (updatedCompany) {
-            if (updatedCompany.uptime_status !== undefined) {
-              setUptimeStatus(updatedCompany.uptime_status);
-            }
-            if (updatedCompany.uptime_response_ms !== undefined) {
-              setUptimeResponseMs(updatedCompany.uptime_response_ms);
-            }
-            if (updatedCompany.last_uptime_check !== undefined) {
-              setLastUptimeCheck(updatedCompany.last_uptime_check);
-            }
-          }
-        }
+        { event: "UPDATE", schema: "public", table: "sites", filter: `company_id=eq.${companyId}` },
+        () => { refreshUptimeRollup(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "companies", filter: `company_id=eq.${companyId}` },
+        () => { refreshUptimeRollup(); }
       )
       .on(
         "postgres_changes",
@@ -109,6 +140,7 @@ export function ClientOverviewContent({
             occurred_at: newAttack.occurred_at,
             label: (newAttack.pattern_type as string)?.toUpperCase() ?? "ATTACK",
             detail: newAttack.ip ?? "",
+            site_url: newAttack.site_url ?? null,
             type: "attack",
           };
           setLiveEvents(prev => [newEvent, ...prev].slice(0, 10));
@@ -243,6 +275,11 @@ export function ClientOverviewContent({
               <span className="block text-xs font-medium text-[var(--muted)]">
                 {uptimeStatus === "unknown" ? "No response data" : `${uptimeResponseMs}ms response`}
               </span>
+              {sitesTotal > 1 && (
+                <span className="block text-xs font-medium text-[var(--muted)]">
+                  {sitesUp}/{sitesTotal} sites up
+                </span>
+              )}
             </span>
           }
           delta={checkedText}
@@ -316,6 +353,9 @@ export function ClientOverviewContent({
                   {e.label}
                 </span>
                 <span className="font-mono text-xs text-[var(--muted)] truncate max-w-[200px]">{e.detail}</span>
+                {e.site_url && (
+                  <span className="text-xs text-[var(--muted)] truncate max-w-[160px] italic">{e.site_url}</span>
+                )}
                 <span className="ml-auto shrink-0">
                   <TimeCell dateStr={e.occurred_at} className="text-xs" />
                 </span>

@@ -37,6 +37,7 @@ export async function POST(request: Request) {
 
     await supabase.from('wpshield_inventory_snapshots').insert({
       company_id: auth.site.company_id,
+      site_id: auth.site_id,
       site_url: payload.site_url,
       severity: 'info',
       kind: payload.kind,

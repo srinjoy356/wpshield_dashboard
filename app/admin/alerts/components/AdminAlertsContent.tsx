@@ -17,6 +17,7 @@ interface CompanySummary {
   display_name: string;
   contact_email: string;
   site_url: string;
+  siteCount?: number;
   open_count: number;
   last_alert_at: string | null;
 }
@@ -140,6 +141,7 @@ export function AdminAlertsContent({ initialAlerts, summaries }: AdminAlertsCont
                               onClick={(e) => e.stopPropagation()}
                             >
                               {s.site_url.replace(/^https?:\/\//, "")}
+                              {(s.siteCount ?? 0) > 1 && <span className="text-[var(--info)] font-semibold">+{(s.siteCount ?? 1) - 1} more</span>}
                               <ExternalLink className="h-2.5 w-2.5" />
                             </a>
                           )}

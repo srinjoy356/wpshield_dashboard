@@ -53,6 +53,10 @@ export function EventDetailPanel({ event, open, onClose }: EventDetailPanelProps
               <p className="text-xs text-[var(--muted)]">Occurred</p>
               <TimeCell dateStr={event.occurred_at} />
             </div>
+            <div>
+              <p className="text-xs text-[var(--muted)]">Site</p>
+              <p className="font-medium truncate">{(event as any).site_url ?? "—"}</p>
+            </div>
             <div className="col-span-2">
               <p className="text-xs text-[var(--muted)]">URI</p>
               <p className="font-mono text-xs break-all">{event.request_uri ?? "—"}</p>

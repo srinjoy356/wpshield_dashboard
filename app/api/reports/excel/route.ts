@@ -80,6 +80,7 @@ export async function GET(request: Request) {
     const company  = reportData.company  || {};
     const maturity = reportData.maturity || {};
     const stats    = reportData.stats    || {};
+    const sites    = reportData.sites    || [];
     const vulns    = reportData.vulnerablePlugins || [];
     const ips      = reportData.topAttackingIps   || [];
     const files    = reportData.recentFileChanges || [];
@@ -157,7 +158,7 @@ export async function GET(request: Request) {
 
     const meta = [
       ["Company Name",    company.display_name || ""],
-      ["Site URL",        company.site_url      || ""],
+      ["Site(s)",         sites.length > 1 ? `${sites.length} sites (see Sites sheet)` : (company.site_url || "")],
       ["Report Period",   reportData.period     || "Last 30 Days"],
       ["Hardening Score", score],
       ["Hardening Level", label],
@@ -205,6 +206,25 @@ export async function GET(request: Request) {
     ws1.getColumn(2).width = 15;
     [3, 4, 5].forEach(c => ws1.getColumn(c).width = 15);
 
+    // ── SHEET: SITES (only when there's more than one to break out) ───────
+    if (sites.length > 1) {
+      const wsSites = wb.addWorksheet("Sites");
+      addTitle(wsSites, "SITES MONITORED", 3);
+      addHeaders(wsSites, ["Site URL", "Hardening Score", "Maturity"], 3);
+      sites.forEach((s: any, i: number) => {
+        const r = 4 + i;
+        styleDataRow(wsSites, r, 3, i % 2 === 1);
+        wsSites.getCell(r, 1).value = s.url || "";
+        wsSites.getCell(r, 1).alignment = { vertical: "middle", indent: 1 };
+        wsSites.getCell(r, 2).value = s.score ?? 0;
+        wsSites.getCell(r, 2).font = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${DARK_TEAL}` } };
+        wsSites.getCell(r, 2).alignment = { horizontal: "center", vertical: "middle" };
+        wsSites.getCell(r, 3).value = s.maturity || "";
+        wsSites.getCell(r, 3).alignment = { vertical: "middle", indent: 1 };
+      });
+      [1, 2, 3].forEach((c, i) => { wsSites.getColumn(c).width = [40, 18, 20][i]; });
+    }
+
     // ── SHEET 2: ATTACKS ──────────────────────────────────────────────────
     const ws2 = wb.addWorksheet("Attacks");
     addTitle(ws2, "TOP ATTACKING IP ADDRESSES", 3);
@@ -224,59 +244,65 @@ export async function GET(request: Request) {
 
     // ── SHEET 3: FILE CHANGES ─────────────────────────────────────────────
     const ws3 = wb.addWorksheet("File Changes");
-    addTitle(ws3, "RECENT FILE MODIFICATIONS", 3);
-    addHeaders(ws3, ["File Path", "Change Type", "Date"], 3);
+    addTitle(ws3, "RECENT FILE MODIFICATIONS", 4);
+    addHeaders(ws3, ["File Path", "Site", "Change Type", "Date"], 3);
     files.forEach((f: any, i: number) => {
       const r = 4 + i;
-      styleDataRow(ws3, r, 3, i % 2 === 1);
+      styleDataRow(ws3, r, 4, i % 2 === 1);
       ws3.getCell(r, 1).value = f.path || "";
       ws3.getCell(r, 1).alignment = { vertical: "middle", indent: 1 };
-      ws3.getCell(r, 2).value = (f.event || "").replace("file_", "").replace(/\b\w/g, (c: string) => c.toUpperCase());
-      ws3.getCell(r, 2).alignment = { horizontal: "center", vertical: "middle" };
-      ws3.getCell(r, 3).value = formatDate(f.occurred_at);
-      ws3.getCell(r, 3).alignment = { vertical: "middle", indent: 1 };
+      ws3.getCell(r, 2).value = f.site_url || "—";
+      ws3.getCell(r, 2).alignment = { vertical: "middle", indent: 1 };
+      ws3.getCell(r, 3).value = (f.event || "").replace("file_", "").replace(/\b\w/g, (c: string) => c.toUpperCase());
+      ws3.getCell(r, 3).alignment = { horizontal: "center", vertical: "middle" };
+      ws3.getCell(r, 4).value = formatDate(f.occurred_at);
+      ws3.getCell(r, 4).alignment = { vertical: "middle", indent: 1 };
     });
-    [1, 2, 3].forEach(c => { ws3.getColumn(c).width = c === 1 ? 60 : c === 2 ? 18 : 28; });
+    [1, 2, 3, 4].forEach((c, i) => { ws3.getColumn(c).width = [55, 35, 18, 28][i]; });
 
     // ── SHEET 4: VULNERABLE PLUGINS ───────────────────────────────────────
     const ws4 = wb.addWorksheet("Vulnerable Plugins");
-    addTitle(ws4, "VULNERABLE PLUGINS DETECTED", 5);
-    addHeaders(ws4, ["Plugin Name", "Version", "CVE ID", "Severity", "Fixed In"], 3);
+    addTitle(ws4, "VULNERABLE PLUGINS DETECTED", 6);
+    addHeaders(ws4, ["Plugin Name", "Site", "Version", "CVE ID", "Severity", "Fixed In"], 3);
     vulns.forEach((v: any, i: number) => {
       const r = 4 + i;
-      styleDataRow(ws4, r, 5, i % 2 === 1);
+      styleDataRow(ws4, r, 6, i % 2 === 1);
       ws4.getCell(r, 1).value = v.plugin_name || "";
       ws4.getCell(r, 1).alignment = { vertical: "middle", indent: 1 };
-      ws4.getCell(r, 2).value = v.plugin_version || "";
-      ws4.getCell(r, 2).alignment = { horizontal: "center", vertical: "middle" };
-      ws4.getCell(r, 3).value = v.cve_id || "—";
+      ws4.getCell(r, 2).value = v.site_url || "—";
+      ws4.getCell(r, 2).alignment = { vertical: "middle", indent: 1 };
+      ws4.getCell(r, 3).value = v.plugin_version || "";
       ws4.getCell(r, 3).alignment = { horizontal: "center", vertical: "middle" };
-      const sev = String(v.severity || "").toUpperCase();
-      ws4.getCell(r, 4).value = sev;
-      ws4.getCell(r, 4).font  = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${sev === "CRITICAL" || sev === "HIGH" ? RED : ORANGE}` } };
+      ws4.getCell(r, 4).value = v.cve_id || "—";
       ws4.getCell(r, 4).alignment = { horizontal: "center", vertical: "middle" };
-      ws4.getCell(r, 5).value = v.fixed_in || "Unpatched";
-      ws4.getCell(r, 5).alignment = { vertical: "middle", indent: 1 };
+      const sev = String(v.severity || "").toUpperCase();
+      ws4.getCell(r, 5).value = sev;
+      ws4.getCell(r, 5).font  = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${sev === "CRITICAL" || sev === "HIGH" ? RED : ORANGE}` } };
+      ws4.getCell(r, 5).alignment = { horizontal: "center", vertical: "middle" };
+      ws4.getCell(r, 6).value = v.fixed_in || "Unpatched";
+      ws4.getCell(r, 6).alignment = { vertical: "middle", indent: 1 };
     });
-    [1, 2, 3, 4, 5].forEach((c, i) => { ws4.getColumn(c).width = [30, 12, 20, 14, 15][i]; });
+    [1, 2, 3, 4, 5, 6].forEach((c, i) => { ws4.getColumn(c).width = [30, 32, 12, 20, 14, 15][i]; });
 
     // ── SHEET 5: ACTION ITEMS ─────────────────────────────────────────────
     const ws5 = wb.addWorksheet("Action Items");
-    addTitle(ws5, "ACTION ITEMS REQUIRED", 3);
-    addHeaders(ws5, ["Check Name", "Risk Level", "Recommendation"], 3);
+    addTitle(ws5, "ACTION ITEMS REQUIRED", 4);
+    addHeaders(ws5, ["Check Name", "Site", "Risk Level", "Recommendation"], 3);
     failed.forEach((c: any, i: number) => {
       const r = 4 + i;
-      styleDataRow(ws5, r, 3, i % 2 === 1);
+      styleDataRow(ws5, r, 4, i % 2 === 1);
       ws5.getCell(r, 1).value = FAIL_NAMES[c.check_name] || c.check_name || "";
       ws5.getCell(r, 1).alignment = { vertical: "middle", indent: 1 };
+      ws5.getCell(r, 2).value = c.site_url || "—";
+      ws5.getCell(r, 2).alignment = { vertical: "middle", indent: 1 };
       const pri = String(c.priority || "medium").toUpperCase();
-      ws5.getCell(r, 2).value = pri;
-      ws5.getCell(r, 2).font  = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${pri === "HIGH" ? RED : pri === "MEDIUM" ? ORANGE : GREEN}` } };
-      ws5.getCell(r, 2).alignment = { horizontal: "center", vertical: "middle" };
-      ws5.getCell(r, 3).value = c.recommendation || "";
-      ws5.getCell(r, 3).alignment = { vertical: "middle", wrapText: true, indent: 1 };
+      ws5.getCell(r, 3).value = pri;
+      ws5.getCell(r, 3).font  = { name: "Calibri", size: 10, bold: true, color: { argb: `FF${pri === "HIGH" ? RED : pri === "MEDIUM" ? ORANGE : GREEN}` } };
+      ws5.getCell(r, 3).alignment = { horizontal: "center", vertical: "middle" };
+      ws5.getCell(r, 4).value = c.recommendation || "";
+      ws5.getCell(r, 4).alignment = { vertical: "middle", wrapText: true, indent: 1 };
     });
-    [1, 2, 3].forEach((c, i) => { ws5.getColumn(c).width = [35, 15, 60][i]; });
+    [1, 2, 3, 4].forEach((c, i) => { ws5.getColumn(c).width = [35, 32, 15, 55][i]; });
 
     // ── Output ────────────────────────────────────────────────────────────
     const buffer = await wb.xlsx.writeBuffer() as unknown as Buffer;

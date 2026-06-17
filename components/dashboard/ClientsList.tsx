@@ -68,7 +68,7 @@ export function ClientsList({ initialCompanies }: ClientsListProps) {
     const matchesSearch =
       c.company_id.toLowerCase().includes(search.toLowerCase()) ||
       c.display_name.toLowerCase().includes(search.toLowerCase()) ||
-      c.site_url.toLowerCase().includes(search.toLowerCase());
+      (c.firstSiteUrl || c.site_url || "").toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === "all" || c.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -218,7 +218,12 @@ export function ClientsList({ initialCompanies }: ClientsListProps) {
                 >
                   <td className="px-6 py-4 font-mono text-sm">{c.company_id}</td>
                   <td className="px-6 py-4 text-sm font-medium">{c.display_name}</td>
-                  <td className="px-6 py-4 text-sm text-[var(--muted)]">{c.site_url}</td>
+                  <td className="px-6 py-4 text-sm text-[var(--muted)]">
+                    {(c.firstSiteUrl || c.site_url || "N/A")}
+                    {(c.siteCount ?? 0) > 1 && (
+                      <span className="ml-1 text-[var(--info)] font-semibold">+{(c.siteCount ?? 1) - 1} more</span>
+                    )}
+                  </td>
                   <td className="px-6 py-4">
                     {(() => {
                       if (c.status === "suspended") return <StatusDot status="suspended" />;

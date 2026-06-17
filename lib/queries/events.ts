@@ -69,13 +69,22 @@ export async function getFileEvents(
 
 export async function getLatestInventoryByKind(
   supabase: SupabaseClient,
-  companyId: string
+  companyId: string,
+  siteId?: string | null
 ) {
-  const { data: snapshots, error } = await supabase
+  let query = supabase
     .from("wpshield_inventory_snapshots")
     .select("*")
     .eq("company_id", companyId)
     .order("occurred_at", { ascending: false });
+
+  // Scoped to one site at a time now — without this, a company with two sites would
+  // only ever see whichever site's plugin happened to send the most recent snapshot,
+  // with the other site's inventory invisible regardless of how many vulnerable
+  // plugins it was running.
+  query = siteId ? query.eq("site_id", siteId) : query.is("site_id", null);
+
+  const { data: snapshots, error } = await query;
 
   if (error) throw error;
   if (!snapshots || snapshots.length === 0) return null;

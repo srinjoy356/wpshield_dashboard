@@ -34,6 +34,7 @@ export async function getWafEngine() {
  */
 export async function evaluateShadowPayload(
   companyId: string, 
+  siteId: string | null,
   ipAddress: string, 
   method: string, 
   uri: string, 
@@ -87,9 +88,13 @@ export async function evaluateShadowPayload(
         }, { onConflict: "company_id,ip" });
         if (insertErr) console.error(`[WAF Supabase Insert Error] ${JSON.stringify(insertErr)}`);
 
-        // Create an alert in the dashboard
+        // Create an alert in the dashboard — attributed to the site that actually
+        // detected this attack, even though the ban below applies to every site
+        // under the company (an attacker IP should be blocked everywhere, not just
+        // wherever it happened to be seen first).
         await supabase.from("alerts").insert({
           company_id: companyId,
+          site_id: siteId,
           source_table: "wpshield_blocked_ips",
           severity: "high",
           title: "Attack blocked by Shadow WAF",

@@ -1,6 +1,6 @@
 export const dynamic = 'force-dynamic';
 import { createClient } from "@/lib/supabase/server";
-import { getDashboardStats, getTimeSeriesStats, getSeverityStats } from "@/lib/queries/stats";
+import { getDashboardStats, getTimeSeriesStats, getSeverityStats, getSitesDownCount } from "@/lib/queries/stats";
 import { getAttackEvents } from "@/lib/queries/events";
 import { getCompaniesWithTodayStats } from "@/lib/queries/companies";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -15,19 +15,14 @@ import { TimeSeriesPoint, SeverityCount } from "@/types";
 export default async function AdminOverview() {
   const supabase = createClient();
   
-  const [stats, timeData, severityData, attackEvents, companiesWithStats, sitesDownRes] = await Promise.all([
+  const [stats, timeData, severityData, attackEvents, companiesWithStats, sitesDownCount] = await Promise.all([
     getDashboardStats(supabase),
     getTimeSeriesStats(supabase),
     getSeverityStats(supabase),
     getAttackEvents(supabase, { limit: 8 }),
     getCompaniesWithTodayStats(supabase),
-    supabase
-      .from("companies")
-      .select("*", { count: "exact", head: true })
-      .eq("uptime_status", "down"),
+    getSitesDownCount(supabase),
   ]);
-
-  const sitesDownCount = sitesDownRes.count || 0;
 
   const totalSeverity = severityData.reduce((a, b) => a + b.value, 0);
 
@@ -125,7 +120,10 @@ export default async function AdminOverview() {
                       )}
                     </td>
                     <td className="py-3 text-right text-xs text-[var(--muted)] truncate max-w-[150px]">
-                      {c.site_url?.replace(/^https?:\/\//, "") || "N/A"}
+                      {c.firstSiteUrl?.replace(/^https?:\/\//, "") || "N/A"}
+                      {c.siteCount > 1 && (
+                        <span className="ml-1 text-[var(--info)] font-semibold">+{c.siteCount - 1} more</span>
+                      )}
                     </td>
                   </tr>
                 ))}

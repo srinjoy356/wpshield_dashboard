@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/queries/profile";
 import { getLatestInventoryByKind } from "@/lib/queries/events";
+import { getCheckTargets } from "@/lib/queries/site-targets";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { TimeCell } from "@/components/dashboard/TimeCell";
 import { InventoryList } from "@/components/dashboard/InventoryList";
@@ -9,8 +10,14 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VulnerabilitiesList } from "@/components/dashboard/VulnerabilitiesList";
 import { Package, ShieldAlert } from "lucide-react";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
-export default async function InventoryPage() {
+interface Props {
+  searchParams: Promise<{ site?: string }>;
+}
+
+export default async function InventoryPage({ searchParams }: Props) {
+  const resolvedSearchParams = await searchParams;
   const supabase = createClient();
   const profile = await getCurrentProfile(supabase);
 
@@ -26,22 +33,80 @@ export default async function InventoryPage() {
   }
 
   const companyId = profile.company_id;
-  const snapshot = await getLatestInventoryByKind(supabase, companyId);
 
-  // Fetch active vulnerability alerts for this company
-  const { data: openVulns } = await supabase
+  const { data: company } = await supabase
+    .from("companies")
+    .select("site_url")
+    .eq("company_id", companyId)
+    .single();
+
+  // Every active site under this company — a company with two sites previously only
+  // ever saw whichever one's plugin happened to send the most recent snapshot, with
+  // the other site's plugins/themes never shown at all regardless of vulnerabilities.
+  const targets = await getCheckTargets(supabase, { company_id: companyId, site_url: company?.site_url });
+
+  if (targets.length === 0) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Site Inventory" subtitle={`${companyId} · Asset Management`} />
+        <EmptyState
+          icon={Package}
+          title="No active site found"
+          description="Activate your license on a WordPress site to start tracking inventory."
+        />
+      </div>
+    );
+  }
+
+  // ?site=<id> selects which site to view; "legacy" represents the null-site_id
+  // fallback target. Defaults to the first target if not specified or invalid.
+  const siteKeyFor = (siteId: string | null) => siteId ?? "legacy";
+  const requestedKey = resolvedSearchParams.site;
+  const selectedTarget =
+    targets.find((t) => siteKeyFor(t.site_id) === requestedKey) ?? targets[0];
+
+  const snapshot = await getLatestInventoryByKind(supabase, companyId, selectedTarget.site_id);
+
+  // Fetch active vulnerability alerts for the selected site
+  let vulnQuery = supabase
     .from("wpshield_vuln_alerts")
     .select("*")
     .eq("company_id", companyId)
     .eq("status", "open")
     .order("created_at", { ascending: false });
+  vulnQuery = selectedTarget.site_id
+    ? vulnQuery.eq("site_id", selectedTarget.site_id)
+    : vulnQuery.is("site_id", null);
+  const { data: openVulns } = await vulnQuery;
 
   // Count unique vulnerable plugins (not raw CVE rows)
   const uniqueVulnPlugins = new Set((openVulns ?? []).map((v) => v.plugin_slug)).size;
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Site Inventory" subtitle={`${companyId} · Asset Management`} />
+      <PageHeader title="Site Inventory" subtitle={`${selectedTarget.url} · Asset Management`} />
+
+      {targets.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {targets.map((t) => {
+            const key = siteKeyFor(t.site_id);
+            const isActive = key === siteKeyFor(selectedTarget.site_id);
+            return (
+              <Link
+                key={key}
+                href={`/app/inventory?site=${key}`}
+                className={
+                  isActive
+                    ? "rounded-full px-4 py-1.5 text-xs font-semibold border bg-[#B8B0AA] text-neutral-900 border-neutral-950"
+                    : "rounded-full px-4 py-1.5 text-xs font-semibold border bg-surface text-[var(--muted)] border-[var(--border)] hover:bg-[var(--surface-subtle)]"
+                }
+              >
+                {t.url}
+              </Link>
+            );
+          })}
+        </div>
+      )}
 
       {openVulns && openVulns.length > 0 && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-red-800 flex items-center gap-3 shadow-sm animate-in fade-in slide-in-from-top-1 duration-200">
@@ -56,7 +121,7 @@ export default async function InventoryPage() {
         <EmptyState
           icon={Package}
           title="No inventory data"
-          description="A snapshot of your site's software will appear here soon."
+          description="A snapshot of this site's software will appear here soon."
         />
       ) : (
         <>
@@ -94,4 +159,3 @@ export default async function InventoryPage() {
     </div>
   );
 }
-

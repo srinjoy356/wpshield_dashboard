@@ -173,6 +173,7 @@ export function LoginsTable({ initialEvents }: LoginsTableProps) {
           <thead>
             <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--muted)]">
               <th className="px-6 py-3 font-medium">Time</th>
+              <th className="px-6 py-3 font-medium">Site</th>
               <th className="px-6 py-3 font-medium">Event</th>
               <th className="px-6 py-3 font-medium">User</th>
               <th className="px-6 py-3 font-medium">IP</th>
@@ -182,7 +183,7 @@ export function LoginsTable({ initialEvents }: LoginsTableProps) {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center">
+                <td colSpan={6} className="px-6 py-12 text-center">
                   <p className="text-sm text-[var(--muted)]">No login events found matching your filters.</p>
                 </td>
               </tr>
@@ -204,6 +205,9 @@ export function LoginsTable({ initialEvents }: LoginsTableProps) {
                   >
                     <td className="px-6 py-3 whitespace-nowrap">
                       <TimeCell dateStr={e.occurred_at} className="text-sm" />
+                    </td>
+                    <td className="px-6 py-3 text-sm text-[var(--muted)] max-w-[160px] truncate">
+                      {e.site_url ?? <span className="italic">—</span>}
                     </td>
                     <td className="px-6 py-3">
                       <div className="flex items-center gap-2">

@@ -225,6 +225,13 @@ export function AlertCard({ alert: initialAlert, isAdmin, isExpanded, onToggle }
             </>
           )}
 
+          {alert.site_url && (
+            <>
+              <span className="text-[var(--border)]">•</span>
+              <span className="truncate max-w-[180px] italic">{alert.site_url}</span>
+            </>
+          )}
+
           <span>{formatDistanceToNow(new Date(alert.created_at), { addSuffix: true })}</span>
         </div>
 

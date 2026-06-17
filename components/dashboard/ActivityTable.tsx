@@ -11,18 +11,18 @@ import { WPActivity } from "@/types";
 
 // Human-readable labels for each action_type from the plugin
 const ACTION_LABELS: Record<string, string> = {
-  plugin_activated:   "Plugin Activated",
+  plugin_activated: "Plugin Activated",
   plugin_deactivated: "Plugin Deactivated",
-  plugin_deleted:     "Plugin Deleted",
-  plugin_installed:   "Plugin Installed",
-  theme_switched:     "Theme Switched",
-  setting_changed:    "Setting Changed",
-  post_published:     "Post Published",
-  post_deleted:       "Post Deleted",
-  user_deleted:       "User Deleted",
-  profile_updated:    "Profile Updated",
-  password_reset:     "Password Reset",
-  core_updated:       "Core Updated",
+  plugin_deleted: "Plugin Deleted",
+  plugin_installed: "Plugin Installed",
+  theme_switched: "Theme Switched",
+  setting_changed: "Setting Changed",
+  post_published: "Post Published",
+  post_deleted: "Post Deleted",
+  user_deleted: "User Deleted",
+  profile_updated: "Profile Updated",
+  password_reset: "Password Reset",
+  core_updated: "Core Updated",
 };
 
 function formatAction(action_type: string): string {
@@ -31,14 +31,14 @@ function formatAction(action_type: string): string {
 
 // Action type groups for the filter dropdown
 const ACTION_GROUPS = [
-  { label: "All Actions",  value: "all" },
-  { label: "Plugin",       value: "plugin" },
-  { label: "Theme",        value: "theme" },
-  { label: "Settings",     value: "setting" },
-  { label: "Posts",        value: "post" },
-  { label: "Users",        value: "user" },
-  { label: "Password",     value: "password" },
-  { label: "Core",         value: "core" },
+  { label: "All Actions", value: "all" },
+  { label: "Plugin", value: "plugin" },
+  { label: "Theme", value: "theme" },
+  { label: "Settings", value: "setting" },
+  { label: "Posts", value: "post" },
+  { label: "Users", value: "user" },
+  { label: "Password", value: "password" },
+  { label: "Core", value: "core" },
 ];
 
 interface Props {
@@ -49,17 +49,17 @@ const PAGE_SIZE = 25;
 
 export function ActivityTable({ initialEvents }: Props) {
   const [actionFilter, setActionFilter] = useState("all");
-  const [search, setSearch]             = useState("");
-  const [timeRange, setTimeRange]       = useState("7d");
-  const [customStart, setCustomStart]   = useState("");
-  const [customEnd, setCustomEnd]       = useState("");
-  const [page, setPage]                 = useState(1);
+  const [search, setSearch] = useState("");
+  const [timeRange, setTimeRange] = useState("7d");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+  const [page, setPage] = useState(1);
 
   const filtered = useMemo(() => {
     const getStartDate = (range: string) => {
       const now = Date.now();
       if (range === "24h") return new Date(now - 24 * 60 * 60 * 1000);
-      if (range === "7d")  return new Date(now - 7  * 24 * 60 * 60 * 1000);
+      if (range === "7d") return new Date(now - 7 * 24 * 60 * 60 * 1000);
       if (range === "30d") return new Date(now - 30 * 24 * 60 * 60 * 1000);
       return null;
     };
@@ -81,7 +81,8 @@ export function ActivityTable({ initialEvents }: Props) {
       }
 
       // Action group filter
-      if (actionFilter !== "all" && !e.action_type.startsWith(actionFilter)) return false;
+      if (actionFilter !== "all" && !e.action_type.startsWith(actionFilter))
+        return false;
 
       // Search on user_login
       if (search) {
@@ -98,20 +99,26 @@ export function ActivityTable({ initialEvents }: Props) {
   }, [initialEvents, actionFilter, search, timeRange, customStart, customEnd]);
 
   // Pagination
-  const totalPages  = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated   = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Reset to page 1 when filters change
-  useMemo(() => { setPage(1); }, [actionFilter, search, timeRange]);
+  useMemo(() => {
+    setPage(1);
+  }, [actionFilter, search, timeRange]);
 
   return (
     <div className="space-y-4">
-
       {/* Time range + filters row */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
-            <TimeRangeTabs onChange={(r) => { setTimeRange(r); setPage(1); }} />
+            <TimeRangeTabs
+              onChange={(r) => {
+                setTimeRange(r);
+                setPage(1);
+              }}
+            />
             {timeRange === "custom" && (
               <div className="hidden sm:flex items-center gap-2">
                 <Input
@@ -132,9 +139,19 @@ export function ActivityTable({ initialEvents }: Props) {
           </div>
           {timeRange === "custom" && (
             <div className="flex sm:hidden items-center gap-2">
-              <Input type="date" className="h-9 flex-1 text-xs" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
+              <Input
+                type="date"
+                className="h-9 flex-1 text-xs"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+              />
               <span className="text-xs text-[var(--muted)]">to</span>
-              <Input type="date" className="h-9 flex-1 text-xs" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
+              <Input
+                type="date"
+                className="h-9 flex-1 text-xs"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+              />
             </div>
           )}
         </div>
@@ -144,11 +161,16 @@ export function ActivityTable({ initialEvents }: Props) {
       <div className="flex flex-col gap-3 sm:flex-row">
         <select
           value={actionFilter}
-          onChange={(e) => { setActionFilter(e.target.value); setPage(1); }}
+          onChange={(e) => {
+            setActionFilter(e.target.value);
+            setPage(1);
+          }}
           className="h-10 rounded-lg border border-[var(--border)] bg-surface px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--foreground)] text-[var(--foreground)]"
         >
           {ACTION_GROUPS.map((g) => (
-            <option key={g.value} value={g.value}>{g.label}</option>
+            <option key={g.value} value={g.value}>
+              {g.label}
+            </option>
           ))}
         </select>
 
@@ -160,7 +182,10 @@ export function ActivityTable({ initialEvents }: Props) {
           <Input
             placeholder="Search user, action, or IP..."
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="pl-9 bg-surface border-[var(--border)] focus:ring-2 focus:ring-[var(--foreground)] h-10"
           />
         </div>
@@ -172,6 +197,7 @@ export function ActivityTable({ initialEvents }: Props) {
           <thead>
             <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--muted)]">
               <th className="px-6 py-3 font-medium">Date / Time</th>
+              <th className="px-6 py-3 font-medium">Site</th>
               <th className="px-6 py-3 font-medium">User</th>
               <th className="px-6 py-3 font-medium">Action</th>
               <th className="px-6 py-3 font-medium">Severity</th>
@@ -181,8 +207,10 @@ export function ActivityTable({ initialEvents }: Props) {
           <tbody>
             {paginated.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center">
-                  <p className="text-sm text-[var(--muted)]">No activity events match your filters.</p>
+                <td colSpan={6} className="px-6 py-12 text-center">
+                  <p className="text-sm text-[var(--muted)]">
+                    No activity events match your filters.
+                  </p>
                 </td>
               </tr>
             ) : (
@@ -194,16 +222,21 @@ export function ActivityTable({ initialEvents }: Props) {
                   <td className="px-6 py-3 whitespace-nowrap">
                     <TimeCell dateStr={e.occurred_at} className="text-sm" />
                   </td>
+                  <td className="px-6 py-3 text-sm text-[var(--muted)] max-w-[180px] truncate">
+                    {e.site_url ?? <span className="italic">—</span>}
+                  </td>
                   <td className="px-6 py-3 text-sm font-medium text-[var(--foreground)]">
-                    {e.user_login ?? <span className="text-[var(--muted)] italic">—</span>}
+                    {e.user_login ?? (
+                      <span className="text-[var(--muted)] italic">—</span>
+                    )}
                   </td>
                   <td className="px-6 py-3">
                     <span className="text-sm text-[var(--foreground)] capitalize">
                       {formatAction(e.action_type)}
                     </span>
-                    {e.metadata && Object.keys(e.metadata).length > 0 && (
+                    {e.details && Object.keys(e.details).length > 0 && (
                       <p className="text-xs text-[var(--muted)] mt-0.5 font-mono truncate max-w-[220px]">
-                        {Object.entries(e.metadata)
+                        {Object.entries(e.details)
                           .slice(0, 2)
                           .map(([k, v]) => `${k}: ${v}`)
                           .join(" · ")}
@@ -227,7 +260,9 @@ export function ActivityTable({ initialEvents }: Props) {
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
           <p className="text-xs text-[var(--muted)]">
-            Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length} events
+            Showing {(page - 1) * PAGE_SIZE + 1}–
+            {Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}{" "}
+            events
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -237,7 +272,9 @@ export function ActivityTable({ initialEvents }: Props) {
             >
               Previous
             </button>
-            <span className="text-xs text-[var(--muted)]">{page} / {totalPages}</span>
+            <span className="text-xs text-[var(--muted)]">
+              {page} / {totalPages}
+            </span>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}

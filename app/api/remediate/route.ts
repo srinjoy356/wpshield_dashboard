@@ -20,27 +20,31 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { action, company_id, file_path, file_hash } = body;
+    const { action, site_id, file_path, file_hash } = body;
 
-    if (!action || !company_id || !file_path) {
+    if (!action || !site_id || !file_path) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const admin = createAdminClient();
 
-    // 1. Get site configuration (URL and Token Hash)
+    // 1. Get site configuration (URL and Token Hash) — looked up directly by site_id,
+    //    not inferred from company_id via "whichever site was created most recently."
+    //    That fallback silently picked the WRONG site for any company with more than
+    //    one active site, sending the remediation command (delete/quarantine a file)
+    //    to a site that never even reported the alert being acted on.
     const { data: site, error: siteError } = await admin
       .from("sites")
-      .select("id, url")
-      .eq("company_id", company_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
+      .select("id, url, company_id")
+      .eq("id", site_id)
       .single();
 
     if (siteError || !site || !site.url) {
       console.error("Remediation site fetch error:", siteError);
       return NextResponse.json({ error: "Site configuration not found" }, { status: 404 });
     }
+
+    const company_id = site.company_id;
 
     const { data: tokenData, error: tokenError } = await admin
       .from("site_tokens")
@@ -104,13 +108,14 @@ export async function POST(req: Request) {
     //    generic alerts table (see create_alert_from_file_event and the source_table
     //    filtering already used in app/api/cron/hardening-audit/route.ts), referencing
     //    the triggering row in wpshield_events_file via source_event_id. Resolve by
-    //    finding that row via company_id + path, then resolving any open alert(s)
-    //    that point back to it.
+    //    finding that row via site_id + path (not just company_id — two sites under
+    //    the same company could share an identical WordPress core file path), then
+    //    resolving any open alert(s) that point back to it.
     if (file_hash) {
       const { data: fileEvents } = await admin
         .from("wpshield_events_file")
         .select("id")
-        .eq("company_id", company_id)
+        .eq("site_id", site.id)
         .eq("path", file_path);
 
       const eventIds = (fileEvents || []).map((e) => e.id);
@@ -119,6 +124,7 @@ export async function POST(req: Request) {
           .from("alerts")
           .update({ status: "resolved", resolved_at: new Date().toISOString() })
           .eq("company_id", company_id)
+          .eq("site_id", site.id)
           .eq("source_table", "wpshield_events_file")
           .in("source_event_id", eventIds);
       }

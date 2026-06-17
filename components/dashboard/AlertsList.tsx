@@ -39,12 +39,23 @@ export function AlertsList({ initialAlerts, isAdmin, showCompanyFilter }: Alerts
   const [sourceFilter, setSourceFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [companyFilter, setCompanyFilter] = useState("all");
+  const [siteFilter, setSiteFilter] = useState("all");
 
   // Get unique companies for admin filter
   const companies = useMemo(() => {
     const set = new Set<string>();
     initialAlerts.forEach(a => {
       if (a.company_id) set.add(a.company_id);
+    });
+    return Array.from(set).sort();
+  }, [initialAlerts]);
+
+  // Get unique sites for the site filter — only meaningful (and only shown) once
+  // there's more than one distinct site to actually choose between.
+  const sites = useMemo(() => {
+    const set = new Set<string>();
+    initialAlerts.forEach(a => {
+      if (a.site_url) set.add(a.site_url);
     });
     return Array.from(set).sort();
   }, [initialAlerts]);
@@ -84,9 +95,12 @@ export function AlertsList({ initialAlerts, isAdmin, showCompanyFilter }: Alerts
       // Company filter (Admin only)
       if ((isAdmin || showCompanyFilter) && companyFilter !== "all" && alert.company_id !== companyFilter) return false;
 
+      // Site filter
+      if (siteFilter !== "all" && alert.site_url !== siteFilter) return false;
+
       return true;
     });
-  }, [initialAlerts, activeTab, search, sourceFilter, severityFilter, companyFilter, isAdmin]);
+  }, [initialAlerts, activeTab, search, sourceFilter, severityFilter, companyFilter, siteFilter, isAdmin]);
 
   // Sort logic
   const sortedAlerts = useMemo(() => {
@@ -107,9 +121,10 @@ export function AlertsList({ initialAlerts, isAdmin, showCompanyFilter }: Alerts
     setSourceFilter("all");
     setSeverityFilter("all");
     setCompanyFilter("all");
+    setSiteFilter("all");
   };
 
-  const hasActiveFilters = search !== "" || sourceFilter !== "all" || severityFilter !== "all" || companyFilter !== "all";
+  const hasActiveFilters = search !== "" || sourceFilter !== "all" || severityFilter !== "all" || companyFilter !== "all" || siteFilter !== "all";
 
   // Tab counts
   const counts = {
@@ -205,6 +220,20 @@ export function AlertsList({ initialAlerts, isAdmin, showCompanyFilter }: Alerts
               <SelectItem value="low">Low</SelectItem>
             </SelectContent>
           </Select>
+
+          {sites.length > 1 && (
+            <Select value={siteFilter} onValueChange={setSiteFilter}>
+              <SelectTrigger className="w-[180px] h-10 rounded-lg border-[var(--border)]">
+                <SelectValue placeholder="Site" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sites</SelectItem>
+                {sites.map(s => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {(isAdmin || showCompanyFilter) && (
             <Select value={companyFilter} onValueChange={setCompanyFilter}>

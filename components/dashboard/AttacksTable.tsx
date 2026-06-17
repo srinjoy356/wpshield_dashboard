@@ -182,6 +182,7 @@ export function AttacksTable({ initialEvents }: AttacksTableProps) {
           <thead>
             <tr className="border-b border-[var(--border)] text-left text-xs text-[var(--muted)]">
               <th className="px-6 py-3 font-medium">Time</th>
+              <th className="px-6 py-3 font-medium">Site</th>
               <th className="px-6 py-3 font-medium">Pattern</th>
               <th className="px-6 py-3 font-medium">Severity</th>
               <th className="px-6 py-3 font-medium">IP</th>
@@ -193,7 +194,7 @@ export function AttacksTable({ initialEvents }: AttacksTableProps) {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center">
+                <td colSpan={8} className="px-6 py-12 text-center">
                   <p className="text-sm text-[var(--muted)]">No attack events found matching your filters.</p>
                 </td>
               </tr>
@@ -206,6 +207,9 @@ export function AttacksTable({ initialEvents }: AttacksTableProps) {
                 >
                   <td className="px-6 py-3 whitespace-nowrap">
                     <TimeCell dateStr={e.occurred_at} className="text-sm" />
+                  </td>
+                  <td className="px-6 py-3 text-sm text-[var(--muted)] max-w-[160px] truncate">
+                    {e.site_url ?? <span className="italic">—</span>}
                   </td>
                   <td className="px-6 py-3">
                     <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-[var(--info)] uppercase">

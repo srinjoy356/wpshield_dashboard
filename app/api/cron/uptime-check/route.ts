@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendAlertNotification } from "@/lib/notify";
+import { getCheckTargets, type CheckTarget } from "@/lib/queries/site-targets";
 
 export const dynamic = "force-dynamic";
 
@@ -33,18 +34,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Failed to fetch companies" }, { status: 500 });
     }
 
-    const results = [];
+    const results: any[] = [];
 
-    // 3. Define concurrent check function
-    const checkCompany = async (company: any) => {
-      const companyId = company.company_id;
-      const siteUrl = company.site_url;
-      const displayName = company.display_name || companyId;
-
-      if (!siteUrl) {
-        console.warn(`Company ${companyId} has no site_url configured.`);
-        return null;
-      }
+    // 3. Check one specific site (or, for a company that's never activated a site via a
+    //    license yet, the legacy single companies.site_url — site_id is null in that
+    //    case and status updates go to the companies row instead of a sites row).
+    const checkOneSite = async (company: any, target: CheckTarget) => {
+      const { site_id, url } = target;
+      const displayName = company.display_name || company.company_id;
 
       let status: "up" | "down" = "up";
       let responseMs = 0;
@@ -56,7 +53,7 @@ export async function GET(request: Request) {
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
       try {
-        const response = await fetch(siteUrl, {
+        const response = await fetch(url, {
           signal: controller.signal,
           headers: {
             "User-Agent": "WPShield Uptime Monitor/1.0",
@@ -76,7 +73,7 @@ export async function GET(request: Request) {
       } catch (err: any) {
         responseMs = Date.now() - startTime;
         status = "down";
-        
+
         if (err.name === "AbortError") {
           errorMessage = "Timeout (10s)";
         } else {
@@ -90,8 +87,9 @@ export async function GET(request: Request) {
       const { data: logRecord, error: logError } = await supabase
         .from("wpshield_uptime_logs")
         .insert({
-          company_id: companyId,
-          site_url: siteUrl,
+          company_id: company.company_id,
+          site_id,
+          site_url: url,
           status,
           response_ms: responseMs,
           status_code: statusCode,
@@ -102,36 +100,44 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       if (logError) {
-        console.error(`Failed to insert uptime log for ${companyId}:`, logError.message);
+        console.error(`Failed to insert uptime log for ${company.company_id} (${url}):`, logError.message);
       }
 
       const logId = logRecord?.id || null;
 
-      // 5. Handle Alert Ingestion
-      if (status === "down") {
-        const alertTitle = `Site is down: ${displayName}`;
+      // For dedup/recovery comparisons, read this specific site's PREVIOUS status —
+      // not the company's, which would be ambiguous across multiple sites.
+      const previousStatus = site_id
+        ? (await supabase.from("sites").select("uptime_status").eq("id", site_id).maybeSingle()).data?.uptime_status
+        : company.uptime_status;
 
-        // Check if an open down alert already exists for this company
-        const { data: existingAlert, error: alertCheckError } = await supabase
+      // 5. Handle Alert Ingestion — title includes the specific URL so multiple sites
+      //    under one company produce distinguishable alerts, not identical-looking ones.
+      if (status === "down") {
+        const alertTitle = `Site is down: ${url}`;
+
+        let existingQuery = supabase
           .from("alerts")
           .select("id")
-          .eq("company_id", companyId)
+          .eq("company_id", company.company_id)
           .eq("title", alertTitle)
-          .eq("status", "open")
-          .maybeSingle();
+          .eq("status", "open");
+        existingQuery = site_id ? existingQuery.eq("site_id", site_id) : existingQuery.is("site_id", null);
+        const { data: existingAlert, error: alertCheckError } = await existingQuery.maybeSingle();
 
         if (alertCheckError) {
-          console.error(`Error checking existing down alerts for ${companyId}:`, alertCheckError.message);
+          console.error(`Error checking existing down alerts for ${company.company_id} (${url}):`, alertCheckError.message);
         }
 
         if (!existingAlert) {
           const timeString = new Date().toLocaleString("en-US", { timeZone: "UTC" }) + " UTC";
-          const description = `Your WordPress site ${siteUrl} is not responding. Last checked: ${timeString}. Immediate action required.`;
+          const description = `Your WordPress site ${url} is not responding. Last checked: ${timeString}. Immediate action required.`;
 
           const { error: alertInsertError } = await supabase
             .from("alerts")
             .insert({
-              company_id: companyId,
+              company_id: company.company_id,
+              site_id,
               source_table: "wpshield_uptime_logs",
               source_event_id: logId,
               severity: "critical",
@@ -141,31 +147,31 @@ export async function GET(request: Request) {
             });
 
           if (alertInsertError) {
-            console.error(`Failed to insert critical down alert for ${companyId}:`, alertInsertError.message);
+            console.error(`Failed to insert critical down alert for ${company.company_id} (${url}):`, alertInsertError.message);
           }
 
-          // Trigger live notifications if alert creation was successful
           if (!alertInsertError) {
             await sendAlertNotification({
-              company_id: companyId,
+              company_id: company.company_id,
               alert_title: alertTitle,
               alert_description: description,
               severity: "critical",
-              site_url: siteUrl,
+              site_url: url,
             });
           }
         } else {
-          console.log(`Open down alert already exists for ${companyId}. Skipping duplicate alert.`);
+          console.log(`Open down alert already exists for ${company.company_id} (${url}). Skipping duplicate alert.`);
         }
-      } else if (status === "up" && company.uptime_status === "down") {
+      } else if (status === "up" && previousStatus === "down") {
         // Site comes back UP after being down
-        const alertTitle = `Site is back online: ${displayName}`;
-        const description = `Your WordPress site ${siteUrl} is back online. Response time: ${responseMs}ms.`;
+        const alertTitle = `Site is back online: ${url}`;
+        const description = `Your WordPress site ${url} is back online. Response time: ${responseMs}ms.`;
 
         const { error: alertInsertError } = await supabase
           .from("alerts")
           .insert({
-            company_id: companyId,
+            company_id: company.company_id,
+            site_id,
             source_table: "wpshield_uptime_logs",
             source_event_id: logId,
             severity: "high",
@@ -175,51 +181,79 @@ export async function GET(request: Request) {
           });
 
         if (alertInsertError) {
-          console.error(`Failed to insert recovery alert for ${companyId}:`, alertInsertError.message);
+          console.error(`Failed to insert recovery alert for ${company.company_id} (${url}):`, alertInsertError.message);
         }
 
-        // Trigger live notifications if recovery alert creation was successful
         if (!alertInsertError) {
           await sendAlertNotification({
-            company_id: companyId,
+            company_id: company.company_id,
             alert_title: alertTitle,
             alert_description: description,
             severity: "high",
-            site_url: siteUrl,
+            site_url: url,
           });
         }
       }
 
-      // 6. Update companies table with current uptime stats
-      const { error: companyUpdateError } = await supabase
-        .from("companies")
-        .update({
-          uptime_status: status,
-          uptime_response_ms: responseMs,
-          last_uptime_check: new Date().toISOString(),
-        })
-        .eq("company_id", companyId);
-
-      if (companyUpdateError) {
-        console.error(`Failed to update uptime status for company ${companyId}:`, companyUpdateError.message);
+      // 6. Update the specific site's own uptime stats — or, for a company with no
+      //    activated sites yet, fall back to the legacy companies row.
+      if (site_id) {
+        const { error: siteUpdateError } = await supabase
+          .from("sites")
+          .update({
+            uptime_status: status,
+            uptime_response_ms: responseMs,
+            last_uptime_check: new Date().toISOString(),
+          })
+          .eq("id", site_id);
+        if (siteUpdateError) {
+          console.error(`Failed to update uptime status for site ${site_id}:`, siteUpdateError.message);
+        }
+      } else {
+        const { error: companyUpdateError } = await supabase
+          .from("companies")
+          .update({
+            uptime_status: status,
+            uptime_response_ms: responseMs,
+            last_uptime_check: new Date().toISOString(),
+          })
+          .eq("company_id", company.company_id);
+        if (companyUpdateError) {
+          console.error(`Failed to update uptime status for company ${company.company_id}:`, companyUpdateError.message);
+        }
       }
 
       return {
-        company_id: companyId,
+        company_id: company.company_id,
+        site_id,
         display_name: displayName,
+        url,
         uptime_status: status,
         response_ms: responseMs,
         error_message: errorMessage,
       };
     };
 
-    // Run all checks concurrently
-    const promises = companies.map((c) => checkCompany(c));
-    const settleResults = await Promise.allSettled(promises);
+    // 3b. For each company, check every active site under it. Companies that have
+    //     never activated a site via a license yet fall back to the legacy single
+    //     companies.site_url field, preserving existing behavior for them.
+    const checkCompany = async (company: any) => {
+      const targets = await getCheckTargets(supabase, company);
+
+      if (targets.length === 0) {
+        console.warn(`Company ${company.company_id} has no sites to check.`);
+        return [];
+      }
+
+      return Promise.all(targets.map((t) => checkOneSite(company, t)));
+    };
+
+    // Run all checks concurrently across companies, then flatten the per-site results.
+    const settleResults = await Promise.allSettled(companies.map((c) => checkCompany(c)));
 
     for (const res of settleResults) {
       if (res.status === "fulfilled" && res.value) {
-        results.push(res.value);
+        results.push(...res.value);
       }
     }
 

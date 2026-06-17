@@ -161,7 +161,7 @@ export function ClientDetailClient({
               </div>
               <div>
                 <p className="text-[10px] uppercase font-bold text-[var(--muted)] tracking-widest mb-1">Sites</p>
-                <p className="text-lg font-mono font-bold text-[var(--info)]">1</p>
+                <p className="text-lg font-mono font-bold text-[var(--info)]">{sites.length}</p>
               </div>
             </div>
           </div>
@@ -213,6 +213,9 @@ export function ClientDetailClient({
           </TabsTrigger>
           <TabsTrigger value="inventory" className="gap-2 rounded-lg data-[state=active]:bg-[var(--surface-subtle)]">
             <Package className="h-4 w-4" /> Inventory
+          </TabsTrigger>
+          <TabsTrigger value="sites" className="gap-2 rounded-lg data-[state=active]:bg-[var(--surface-subtle)]">
+            <Globe className="h-4 w-4" /> Sites ({sites.length})
           </TabsTrigger>
           <TabsTrigger value="alerts" className="gap-2 rounded-lg data-[state=active]:bg-[var(--surface-subtle)]">
             <Activity className="h-4 w-4" /> Alerts ({alerts.length})

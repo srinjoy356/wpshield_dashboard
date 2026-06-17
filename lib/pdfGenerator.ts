@@ -44,6 +44,10 @@ function formatDate(dateStr: string | null | undefined): string {
   } catch { return dateStr; }
 }
 
+function stripProtocol(url: string): string {
+  return (url || '').replace(/^https?:\/\//, '');
+}
+
 function formatAttackType(pattern: string): string {
   const mapping: Record<string, string> = {
     sensitive_404: 'Sensitive File Probe',
@@ -72,6 +76,7 @@ export async function generatePdfBuffer(reportData: any): Promise<Buffer> {
   const company   = reportData.company   || {};
   const maturity  = reportData.maturity  || {};
   const stats     = reportData.stats     || {};
+  const sites     = reportData.sites     || [];
   const score     = maturity.score       ?? 0;
   const matColor  = getMaturityColor(score);
   const matLabel  = getMaturityLabel(score);
@@ -80,6 +85,7 @@ export async function generatePdfBuffer(reportData: any): Promise<Buffer> {
   const ips       = reportData.topAttackingIps   || [];
   const files     = reportData.recentFileChanges || [];
   const failed    = reportData.failedChecks      || [];
+  const isMultiSite = sites.length > 1;
 
   const FAIL_NAMES: Record<string, string> = {
     'No Vulnerable Plugins':              'Vulnerable Plugins Detected',
@@ -167,11 +173,12 @@ export async function generatePdfBuffer(reportData: any): Promise<Buffer> {
   doc.text(company.display_name || '', PW / 2, y, { align: 'center' });
   y += 7;
 
-  // Site URL
+  // Site URL — for a single site, show it directly; for multiple, show the count
+  // instead of just one of several URLs with no indication the others exist.
   doc.setTextColor(...GRAY);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(company.site_url || '', PW / 2, y, { align: 'center' });
+  doc.text(isMultiSite ? `Monitoring ${sites.length} sites` : (company.site_url || ''), PW / 2, y, { align: 'center' });
   y += 5;
 
   // Thin teal line
@@ -257,6 +264,37 @@ export async function generatePdfBuffer(reportData: any): Promise<Buffer> {
     doc.text(s.label, bx + statBoxW / 2, statBoxY + 17, { align: 'center' });
   });
   y = statBoxY + statBoxH + 8;
+
+  // Per-site score breakdown — only shown when there's more than one site, so a
+  // single-site report stays exactly as it was rather than showing a one-row table.
+  if (isMultiSite) {
+    doc.setTextColor(...DARK_TEAL);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Sites Monitored', M, y);
+    y += 6;
+
+    const sCols = [
+      { label: 'Site',     x: M,        w: 90 },
+      { label: 'Score',    x: M + 90,   w: 30, align: 'center' },
+      { label: 'Maturity', x: M + 120,  w: 40 },
+    ];
+    drawTableHeaderRow(sCols, y, 8);
+    y += 8;
+    sites.forEach((s: any, i: number) => {
+      rowFill(y, 7, i, sCols);
+      doc.setTextColor(...BLACK);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(stripProtocol(s.url || '').substring(0, 50), sCols[0].x + 3, y + 5);
+      doc.setTextColor(...getMaturityColor(s.score));
+      doc.setFont('helvetica', 'bold');
+      doc.text(String(s.score), sCols[1].x + sCols[1].w / 2, y + 5, { align: 'center' });
+      doc.text(String(s.maturity || ''), sCols[2].x + 3, y + 5);
+      y += 7;
+    });
+    y += 8;
+  }
 
   // Analyst review
   if (review?.status === 'published') {
@@ -358,13 +396,22 @@ export async function generatePdfBuffer(reportData: any): Promise<Buffer> {
   y += 6;
 
   if (vulns.length > 0) {
-    const vCols = [
-      { label: 'Plugin',      x: M,        w: 55 },
-      { label: 'Version',     x: M + 55,   w: 20 },
-      { label: 'CVE ID',      x: M + 75,   w: 28 },
-      { label: 'Severity',    x: M + 103,  w: 22 },
-      { label: 'Fix Version', x: M + 125,  w: 35 },
-    ];
+    const vCols = isMultiSite
+      ? [
+          { label: 'Plugin',      x: M,        w: 38 },
+          { label: 'Site',        x: M + 38,   w: 32 },
+          { label: 'Version',     x: M + 70,   w: 15 },
+          { label: 'CVE ID',      x: M + 85,   w: 20 },
+          { label: 'Severity',    x: M + 105,  w: 18 },
+          { label: 'Fix Version', x: M + 123,  w: 37 },
+        ]
+      : [
+          { label: 'Plugin',      x: M,        w: 55 },
+          { label: 'Version',     x: M + 55,   w: 20 },
+          { label: 'CVE ID',      x: M + 75,   w: 28 },
+          { label: 'Severity',    x: M + 103,  w: 22 },
+          { label: 'Fix Version', x: M + 125,  w: 35 },
+        ];
     drawTableHeaderRow(vCols, y, 8);
     y += 8;
     vulns.forEach((v: any, i: number) => {
@@ -373,16 +420,25 @@ export async function generatePdfBuffer(reportData: any): Promise<Buffer> {
       doc.setTextColor(...BLACK);
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
-      doc.text(String(v.plugin_name || '').substring(0, 25), vCols[0].x + 2, y + 5);
-      doc.text(String(v.plugin_version || ''), vCols[1].x + 2, y + 5);
-      doc.text(String(v.cve_id || '—').substring(0, 15), vCols[2].x + 2, y + 5);
+      let colIdx = 0;
+      doc.text(String(v.plugin_name || '').substring(0, isMultiSite ? 20 : 25), vCols[colIdx].x + 2, y + 5);
+      colIdx++;
+      if (isMultiSite) {
+        doc.text(stripProtocol(v.site_url || '—').substring(0, 22), vCols[colIdx].x + 2, y + 5);
+        colIdx++;
+      }
+      doc.text(String(v.plugin_version || ''), vCols[colIdx].x + 2, y + 5);
+      colIdx++;
+      doc.text(String(v.cve_id || '—').substring(0, isMultiSite ? 12 : 15), vCols[colIdx].x + 2, y + 5);
+      colIdx++;
       const sev = String(v.severity || '').toUpperCase();
       doc.setTextColor(...(sev === 'CRITICAL' || sev === 'HIGH' ? RED : ORANGE));
       doc.setFont('helvetica', 'bold');
-      doc.text(sev, vCols[3].x + 2, y + 5);
+      doc.text(sev, vCols[colIdx].x + 2, y + 5);
+      colIdx++;
       doc.setTextColor(...BLACK);
       doc.setFont('helvetica', 'normal');
-      doc.text(String(v.fixed_in || 'Unpatched'), vCols[4].x + 2, y + 5);
+      doc.text(String(v.fixed_in || 'Unpatched'), vCols[colIdx].x + 2, y + 5);
       y += rh;
     });
     y += 4;
@@ -445,24 +501,39 @@ export async function generatePdfBuffer(reportData: any): Promise<Buffer> {
   y += 6;
 
   if (files.length > 0) {
-    const fCols = [
-      { label: 'File Path',    x: M,       w: 85 },
-      { label: 'Change Type',  x: M + 85,  w: 25, align: 'center' },
-      { label: 'Date',         x: M + 110, w: 50 },
-    ];
+    const fCols = isMultiSite
+      ? [
+          { label: 'File Path',    x: M,       w: 58 },
+          { label: 'Site',         x: M + 58,  w: 35 },
+          { label: 'Change Type',  x: M + 93,  w: 22, align: 'center' },
+          { label: 'Date',         x: M + 115, w: 45 },
+        ]
+      : [
+          { label: 'File Path',    x: M,       w: 85 },
+          { label: 'Change Type',  x: M + 85,  w: 25, align: 'center' },
+          { label: 'Date',         x: M + 110, w: 50 },
+        ];
     drawTableHeaderRow(fCols, y, 8);
     y += 8;
     files.forEach((f: any, i: number) => {
       let path = String(f.path || '');
-      if (path.length > 45) path = '...' + path.slice(-42);
+      const maxPathLen = isMultiSite ? 32 : 45;
+      if (path.length > maxPathLen) path = '...' + path.slice(-(maxPathLen - 3));
       const change = String(f.event || '').replace('file_', '').replace(/\b\w/g, (c: string) => c.toUpperCase());
       rowFill(y, 7, i, fCols);
       doc.setTextColor(...BLACK);
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
-      doc.text(path, fCols[0].x + 2, y + 5);
-      doc.text(change, fCols[1].x + fCols[1].w / 2, y + 5, { align: 'center' });
-      doc.text(formatDate(f.occurred_at), fCols[2].x + 2, y + 5);
+      let colIdx = 0;
+      doc.text(path, fCols[colIdx].x + 2, y + 5);
+      colIdx++;
+      if (isMultiSite) {
+        doc.text(stripProtocol(f.site_url || '—').substring(0, 25), fCols[colIdx].x + 2, y + 5);
+        colIdx++;
+      }
+      doc.text(change, fCols[colIdx].x + fCols[colIdx].w / 2, y + 5, { align: 'center' });
+      colIdx++;
+      doc.text(formatDate(f.occurred_at), fCols[colIdx].x + 2, y + 5);
       y += 7;
     });
     y += 4;
@@ -498,11 +569,18 @@ export async function generatePdfBuffer(reportData: any): Promise<Buffer> {
   y += 8;
 
   if (failed.length > 0) {
-    const aCols = [
-      { label: 'Issue',      x: M,       w: 55 },
-      { label: 'Risk Level', x: M + 55,  w: 25, align: 'center' },
-      { label: 'What To Do', x: M + 80,  w: 80 },
-    ];
+    const aCols = isMultiSite
+      ? [
+          { label: 'Issue',      x: M,       w: 38 },
+          { label: 'Site',       x: M + 38,  w: 32 },
+          { label: 'Risk Level', x: M + 70,  w: 20, align: 'center' },
+          { label: 'What To Do', x: M + 90,  w: 70 },
+        ]
+      : [
+          { label: 'Issue',      x: M,       w: 55 },
+          { label: 'Risk Level', x: M + 55,  w: 25, align: 'center' },
+          { label: 'What To Do', x: M + 80,  w: 80 },
+        ];
     drawTableHeaderRow(aCols, y, 8);
     y += 8;
 
@@ -512,8 +590,9 @@ export async function generatePdfBuffer(reportData: any): Promise<Buffer> {
       const priColor: [number,number,number] =
         priority === 'HIGH'   ? RED :
         priority === 'MEDIUM' ? ORANGE : GREEN;
+      const whatToDoCol = aCols[aCols.length - 1];
       const rec = String(c.recommendation || '');
-      const recLines = doc.splitTextToSize(rec, aCols[2].w - 4);
+      const recLines = doc.splitTextToSize(rec, whatToDoCol.w - 4);
       const rh = Math.max(7, recLines.length * 4.5 + 3);
 
       rowFill(y, rh, i, aCols);
@@ -522,12 +601,19 @@ export async function generatePdfBuffer(reportData: any): Promise<Buffer> {
       doc.setFont('helvetica', 'normal');
       const nameLines = doc.splitTextToSize(displayName, aCols[0].w - 4);
       doc.text(nameLines, aCols[0].x + 3, y + 5);
+      let colIdx = 1;
+      if (isMultiSite) {
+        doc.setFontSize(8);
+        doc.text(stripProtocol(c.site_url || '—').substring(0, 26), aCols[colIdx].x + 3, y + 5);
+        doc.setFontSize(9);
+        colIdx++;
+      }
       doc.setTextColor(...priColor);
       doc.setFont('helvetica', 'bold');
-      doc.text(priority, aCols[1].x + aCols[1].w / 2, y + 5, { align: 'center' });
+      doc.text(priority, aCols[colIdx].x + aCols[colIdx].w / 2, y + 5, { align: 'center' });
       doc.setTextColor(...BLACK);
       doc.setFont('helvetica', 'normal');
-      doc.text(recLines, aCols[2].x + 3, y + 5);
+      doc.text(recLines, whatToDoCol.x + 3, y + 5);
       y += rh;
     });
   } else {

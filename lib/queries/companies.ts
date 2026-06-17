@@ -118,6 +118,14 @@ export async function getCompaniesWithTodayStats(supabase: SupabaseClient) {
 
   if (error) throw error;
 
+  const { data: siteRows } = await supabase.from("sites").select("company_id, url").eq("is_active", true);
+  const sitesByCompany = new Map<string, string[]>();
+  (siteRows || []).forEach((s) => {
+    const arr = sitesByCompany.get(s.company_id) || [];
+    arr.push(s.url);
+    sitesByCompany.set(s.company_id, arr);
+  });
+
   const tables = [
     "wpshield_events_attack",
     "wpshield_events_login",
@@ -137,9 +145,12 @@ export async function getCompaniesWithTodayStats(supabase: SupabaseClient) {
           return count || 0;
         })
       );
+      const realSites = sitesByCompany.get(c.company_id) || [];
       return {
         ...c,
         todayEvents: counts.reduce((a, b) => a + b, 0),
+        siteCount: realSites.length > 0 ? realSites.length : c.site_url ? 1 : 0,
+        firstSiteUrl: realSites[0] || c.site_url || null,
       };
     })
   );

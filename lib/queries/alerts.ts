@@ -5,9 +5,12 @@ export async function getAlerts(
   supabase: SupabaseClient,
   options?: { companyId?: string; status?: string; limit?: number }
 ) {
+  // Joined to sites for a displayable URL — alerts only carry the verified site_id
+  // (a UUID), not a human-readable string, so without this join there'd be no way
+  // to show which specific site an alert belongs to.
   let query = supabase
     .from("alerts")
-    .select("*")
+    .select("*, site:sites(url)")
     .order("created_at", { ascending: false });
 
   if (options?.companyId) {
@@ -24,7 +27,14 @@ export async function getAlerts(
 
   const { data, error } = await query;
   if (error) throw error;
-  return data as Alert[];
+
+  // Supabase can return the joined relation as either an object or a single-item
+  // array depending on FK direction inference — normalize it here once instead of
+  // every consumer having to guess.
+  return (data || []).map((a: any) => ({
+    ...a,
+    site_url: (Array.isArray(a.site) ? a.site[0]?.url : a.site?.url) ?? null,
+  })) as Alert[];
 }
 
 export async function getAlertCounts(supabase: SupabaseClient, companyId?: string) {
@@ -92,15 +102,28 @@ export async function getCompanyAlertSummaries(supabase: SupabaseClient) {
   
   if (aError) throw aError;
 
+  // Real active sites per company — site_url alone only ever showed one legacy
+  // value, same gap as the admin overview's "Top onboarded clients" table.
+  const { data: siteRows } = await supabase.from("sites").select("company_id, url").eq("is_active", true);
+  const sitesByCompany = new Map<string, string[]>();
+  (siteRows || []).forEach((s) => {
+    const arr = sitesByCompany.get(s.company_id) || [];
+    arr.push(s.url);
+    sitesByCompany.set(s.company_id, arr);
+  });
+
   const summaries = companies.map(c => {
     const companyAlerts = alerts.filter(a => a.company_id === c.company_id);
     const openCount = companyAlerts.filter(a => a.status === "open").length;
     const lastAlert = companyAlerts.length > 0 
       ? companyAlerts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0].created_at 
       : null;
+    const realSites = sitesByCompany.get(c.company_id) || [];
 
     return {
       ...c,
+      site_url: realSites[0] || c.site_url,
+      siteCount: realSites.length > 0 ? realSites.length : (c.site_url ? 1 : 0),
       open_count: openCount,
       last_alert_at: lastAlert
     };
@@ -114,4 +137,3 @@ export async function getCompanyAlertSummaries(supabase: SupabaseClient) {
     return new Date(b.last_alert_at).getTime() - new Date(a.last_alert_at).getTime();
   });
 }
-

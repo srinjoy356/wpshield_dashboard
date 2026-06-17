@@ -36,6 +36,7 @@ export async function POST(request: Request) {
 
     evaluateShadowPayload(
       auth.site.company_id,
+      auth.site_id ?? null,
       ip,
       method,
       uri,

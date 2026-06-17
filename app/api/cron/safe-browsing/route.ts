@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendAlertNotification } from "@/lib/notify";
+import { getCheckTargets } from "@/lib/queries/site-targets";
 
 export const dynamic = "force-dynamic";
 
@@ -17,10 +18,10 @@ export async function GET(request: Request) {
     const secret = request.headers.get("x-cron-secret");
     const cronSecret = process.env.CRON_SECRET;
     if (!cronSecret) {
-    return NextResponse.json(
+      return NextResponse.json(
         { error: "Server misconfiguration: CRON_SECRET is not set" },
-        { status: 500 }
-    );
+        { status: 500 },
+      );
     }
     if (!secret || secret !== cronSecret) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -30,18 +31,20 @@ export async function GET(request: Request) {
     if (!apiKey) {
       return NextResponse.json(
         { error: "GOOGLE_SAFE_BROWSING_KEY not configured" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
     const supabase = createAdminClient();
 
-    // 2. Fetch all active companies with a site_url
+    // 2. Fetch all active companies — site_url is no longer required here, since a
+    //    company's actual sites live in the sites table now; the not-null filter
+    //    previously skipped any company whose legacy site_url field was empty even if
+    //    it had real activated sites.
     const { data: companies, error } = await supabase
       .from("companies")
       .select("company_id, display_name, site_url, safebrowsing_status")
-      .eq("status", "active")
-      .not("site_url", "is", null);
+      .eq("status", "active");
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -51,127 +54,163 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, checked: 0 });
     }
 
-    const results = await Promise.all(
-    companies.map(async (company) => {
-        const siteUrl = company.site_url;
-        if (!siteUrl) return null;
+    const checkOneSite = async (
+      company: any,
+      target: { site_id: string | null; url: string },
+    ) => {
+      const { site_id, url: siteUrl } = target;
 
-        let status: "clean" | "blacklisted" | "unknown" = "unknown";
+      let status: "clean" | "blacklisted" | "unknown" = "unknown";
 
-        try {
+      try {
         const sbAbort = new AbortController();
         const sbTimeout = setTimeout(() => sbAbort.abort(), 10000);
 
         const res = await fetch(
-            `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${apiKey}`,
-            {
+          `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${apiKey}`,
+          {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                client: {
+              client: {
                 clientId: "wpshield-cybernara",
                 clientVersion: "2.0.0",
-                },
-                threatInfo: {
+              },
+              threatInfo: {
                 threatTypes: THREAT_TYPES,
                 platformTypes: ["ANY_PLATFORM"],
                 threatEntryTypes: ["URL"],
                 threatEntries: [{ url: siteUrl }],
-                },
+              },
             }),
             signal: sbAbort.signal,
-            }
+          },
         ).finally(() => clearTimeout(sbTimeout));
 
         if (!res.ok) {
-            console.error(
-            `[safe-browsing] API error for ${company.company_id}:`,
+          console.error(
+            `[safe-browsing] API error for ${company.company_id} (${siteUrl}):`,
             res.status,
-            await res.text()
-            );
-            status = "unknown";
+            await res.text(),
+          );
+          status = "unknown";
         } else {
-            const data = await res.json();
-            status =
+          const data = await res.json();
+          status =
             data.matches && data.matches.length > 0 ? "blacklisted" : "clean";
         }
-        } catch (err: any) {
+      } catch (err: any) {
         console.error(
-            `[safe-browsing] fetch failed for ${company.company_id}:`,
-            err.message
+          `[safe-browsing] fetch failed for ${company.company_id} (${siteUrl}):`,
+          err.message,
         );
         status = "unknown";
-        }
+      }
 
-        // Update companies table
+      // Previous status for THIS specific site, not the company's — needed to detect
+      // a clean recovery rather than comparing against another site's last result.
+      const previousStatus = site_id
+        ? (
+            await supabase
+              .from("sites")
+              .select("safebrowsing_status")
+              .eq("id", site_id)
+              .maybeSingle()
+          ).data?.safebrowsing_status
+        : company.safebrowsing_status;
+
+      if (site_id) {
         await supabase
-        .from("companies")
-        .update({
+          .from("sites")
+          .update({
             safebrowsing_status: status,
             last_safebrowsing_check: new Date().toISOString(),
-        })
-        .eq("company_id", company.company_id);
+          })
+          .eq("id", site_id);
+      } else {
+        await supabase
+          .from("companies")
+          .update({
+            safebrowsing_status: status,
+            last_safebrowsing_check: new Date().toISOString(),
+          })
+          .eq("company_id", company.company_id);
+      }
 
-        // If blacklisted — create alert
-        if (status === "blacklisted") {
-        const alertTitle = "Site blacklisted by Google Safe Browsing";
+      // If blacklisted — create alert
+      if (status === "blacklisted") {
+        const alertTitle = `Site blacklisted by Google Safe Browsing: ${siteUrl}`;
 
-        const { data: existing } = await supabase
-            .from("alerts")
-            .select("id")
-            .eq("company_id", company.company_id)
-            .eq("title", alertTitle)
-            .eq("status", "open")
-            .maybeSingle();
+        let existingQuery = supabase
+          .from("alerts")
+          .select("id")
+          .eq("company_id", company.company_id)
+          .eq("title", alertTitle)
+          .eq("status", "open");
+        existingQuery = site_id
+          ? existingQuery.eq("site_id", site_id)
+          : existingQuery.is("site_id", null);
+        const { data: existing } = await existingQuery.maybeSingle();
 
         if (!existing) {
-            const description = `${siteUrl} has been flagged by Google Safe Browsing as containing malware, phishing, or unwanted software. Visitors using Chrome, Firefox, or Safari will see a warning page. Immediate action is required.`;
+          const description = `${siteUrl} has been flagged by Google Safe Browsing as containing malware, phishing, or unwanted software. Visitors using Chrome, Firefox, or Safari will see a warning page. Immediate action is required.`;
 
-            await supabase.from("alerts").insert({
+          await supabase.from("alerts").insert({
             company_id: company.company_id,
-            source_table: "companies",
+            site_id,
+            source_table: "sites",
             source_event_id: null,
             severity: "critical",
             title: alertTitle,
             description,
             status: "open",
-            });
+          });
 
-            await sendAlertNotification({
+          await sendAlertNotification({
             company_id: company.company_id,
             alert_title: alertTitle,
             alert_description: description,
             severity: "critical",
             site_url: siteUrl,
-            });
+          });
         }
-        }
+      }
 
-        // If previously blacklisted and now clean — recovery alert
-        if (status === "clean" && company.safebrowsing_status === "blacklisted") {
+      // If previously blacklisted and now clean — recovery alert
+      if (status === "clean" && previousStatus === "blacklisted") {
         await supabase.from("alerts").insert({
-            company_id: company.company_id,
-            source_table: "companies",
-            source_event_id: null,
-            severity: "medium",
-            title: "Site removed from Google Safe Browsing blacklist",
-            description: `${siteUrl} has been cleared from Google Safe Browsing. The site is no longer flagged as dangerous.`,
-            status: "open",
+          company_id: company.company_id,
+          site_id,
+          source_table: "sites",
+          source_event_id: null,
+          severity: "medium",
+          title: `Site removed from Google Safe Browsing blacklist: ${siteUrl}`,
+          description: `${siteUrl} has been cleared from Google Safe Browsing. The site is no longer flagged as dangerous.`,
+          status: "open",
         });
-        }
+      }
 
-        console.log(`[safe-browsing] ${company.company_id} → ${status}`);
+      console.log(
+        `[safe-browsing] ${company.company_id} (${siteUrl}) → ${status}`,
+      );
 
-        return {
+      return {
         company_id: company.company_id,
+        site_id,
         site_url: siteUrl,
         status,
-        };
-    })
+      };
+    };
+
+    const nestedResults = await Promise.all(
+      companies.map(async (company) => {
+        const targets = await getCheckTargets(supabase, company);
+        if (targets.length === 0) return [];
+        return Promise.all(targets.map((t) => checkOneSite(company, t)));
+      }),
     );
 
-    // Filter out nulls from skipped entries
-    const filteredResults = results.filter(Boolean);
+    const filteredResults = nestedResults.flat().filter(Boolean);
 
     return NextResponse.json({ success: true, results: filteredResults });
   } catch (err: any) {

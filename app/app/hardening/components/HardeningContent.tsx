@@ -39,10 +39,16 @@ interface EvidenceData {
   fileAlerts: Array<{ title: string; created_at: string }>;
 }
 
+export interface SiteBundle {
+  site_id: string | null;
+  site_url: string;
+  initialResults: HardeningResult[];
+  evidence: EvidenceData;
+}
+
 interface HardeningContentProps {
   companyId: string;
-  initialResults: HardeningResult[];
-  evidence?: EvidenceData;
+  sites: SiteBundle[];
 }
 
 const DEFAULT_CHECKS = [
@@ -85,12 +91,19 @@ function MaturityIcon({ name, className }: { name: string; className?: string })
   }
 }
 
-export function HardeningContent({ companyId, initialResults, evidence }: HardeningContentProps) {
-  const [results, setResults] = useState<HardeningResult[]>(initialResults);
+export function HardeningContent({ companyId, sites }: HardeningContentProps) {
+  const [siteBundles, setSiteBundles] = useState<SiteBundle[]>(sites);
+  const [selectedSiteIndex, setSelectedSiteIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
 
   const supabase = useMemo(() => createClient(), []);
+
+  // If this company has no sites to check at all, siteBundles is empty — guard
+  // against that rather than assuming index 0 always exists.
+  const current = siteBundles[selectedSiteIndex];
+  const results = current?.initialResults || [];
+  const evidence = current?.evidence;
 
   const mergedChecks = useMemo(() => {
     return DEFAULT_CHECKS.map((def) => {
@@ -166,7 +179,16 @@ export function HardeningContent({ companyId, initialResults, evidence }: Harden
           .select("*")
           .eq("company_id", companyId);
         if (newResults) {
-          setResults(newResults as HardeningResult[]);
+          // Re-bucket the company-wide result set back into each site's own bundle —
+          // a single audit run covers every active site under this company at once.
+          setSiteBundles((prev) =>
+            prev.map((bundle) => ({
+              ...bundle,
+              initialResults: (newResults as (HardeningResult & { site_id: string | null })[]).filter(
+                (r) => r.site_id === bundle.site_id
+              ),
+            }))
+          );
         }
       }
     } catch (err) {
@@ -332,9 +354,45 @@ export function HardeningContent({ companyId, initialResults, evidence }: Harden
   const badge = getMaturityBadge(score);
   const categories = ["Network", "Alerts", "Plugins", "Availability", "Monitoring", "Files"];
 
+  if (siteBundles.length === 0) {
+    return (
+      <div className="space-y-8 animate-in fade-in duration-300">
+        <PageHeader title="Security Hardening" subtitle={`${companyId} · Vulnerability Audit`} />
+        <div className="rounded-2xl border border-[var(--border)] bg-surface p-8 text-center text-sm text-[var(--muted)]">
+          No active site found for this account yet. Activate your license on a WordPress site to start running hardening audits.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
-      <PageHeader title="Security Hardening" subtitle={`${companyId} · Vulnerability Audit`} />
+      <PageHeader
+        title="Security Hardening"
+        subtitle={`${current?.site_url || companyId} · Vulnerability Audit`}
+      />
+
+      {siteBundles.length > 1 && (
+        <div className="flex flex-wrap gap-2">
+          {siteBundles.map((bundle, idx) => (
+            <button
+              key={bundle.site_id ?? `legacy-${idx}`}
+              onClick={() => {
+                setSelectedSiteIndex(idx);
+                setExpandedKey(null);
+              }}
+              className={cn(
+                "rounded-full px-4 py-1.5 text-xs font-semibold border transition-colors",
+                idx === selectedSiteIndex
+                  ? "bg-[#B8B0AA] text-neutral-900 border-neutral-950"
+                  : "bg-surface text-[var(--muted)] border-[var(--border)] hover:bg-[var(--surface-subtle)]"
+              )}
+            >
+              {bundle.site_url}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Hero Scoreboard card with horizontal split inside */}
       <div className="rounded-2xl border border-[var(--border)] bg-premium-surface p-8 shadow-sm relative overflow-hidden">

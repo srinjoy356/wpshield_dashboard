@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     if (!cronSecret) {
       return NextResponse.json(
         { error: "Server misconfiguration: CRON_SECRET is not set" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -27,29 +27,38 @@ export async function GET(request: Request) {
 
     const { data: attacks, error: queryError } = await supabase
       .from("wpshield_events_attack")
-      .select("ip, company_id")
+      .select("ip, company_id, site_id")
       .gte("occurred_at", twentyFourHoursAgo.toISOString());
 
     if (queryError) {
       console.error("Error querying attack events:", queryError);
       return NextResponse.json(
         { error: "Failed to query attack events" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
-    // 3. Group by IP to find those attacking >= 2 different company_ids
-    const ipMap = new Map<string, Map<string, number>>(); // ip -> Map<company_id, attack_count>
+    // 3. Group by IP to find those attacking >= 2 different company_ids. Also track
+    //    which site_id(s) within each company took the hits, so the alert created
+    //    below can point at the specific site rather than just the company — when an
+    //    IP hits more than one site under the same company, attribute to whichever was
+    //    hit the most (a reasonable simplification rather than splitting one IP's
+    //    cross-network alert into per-site duplicates).
+    const ipMap = new Map<string, Map<string, Map<string | null, number>>>(); // ip -> company_id -> site_id -> count
 
-    for (const attack of (attacks || [])) {
-      const { ip, company_id } = attack;
+    for (const attack of attacks || []) {
+      const { ip, company_id, site_id } = attack as {
+        ip: string;
+        company_id: string;
+        site_id: string | null;
+      };
       if (!ip || !company_id) continue;
 
-      if (!ipMap.has(ip)) {
-        ipMap.set(ip, new Map<string, number>());
-      }
+      if (!ipMap.has(ip)) ipMap.set(ip, new Map());
       const companyMap = ipMap.get(ip)!;
-      companyMap.set(company_id, (companyMap.get(company_id) || 0) + 1);
+      if (!companyMap.has(company_id)) companyMap.set(company_id, new Map());
+      const siteMap = companyMap.get(company_id)!;
+      siteMap.set(site_id, (siteMap.get(site_id) || 0) + 1);
     }
 
     const flaggedIps: any[] = [];
@@ -58,11 +67,25 @@ export async function GET(request: Request) {
     ipMap.forEach((companyMap, ip) => {
       if (companyMap.size >= 2) {
         let totalAttacks = 0;
-        const companiesInfo: Array<{ company_id: string; count: number }> = [];
+        const companiesInfo: Array<{
+          company_id: string;
+          count: number;
+          site_id: string | null;
+        }> = [];
 
-        companyMap.forEach((count, company_id) => {
+        companyMap.forEach((siteMap, company_id) => {
+          let count = 0;
+          let topSiteId: string | null = null;
+          let topSiteCount = -1;
+          siteMap.forEach((siteCount, siteId) => {
+            count += siteCount;
+            if (siteCount > topSiteCount) {
+              topSiteCount = siteCount;
+              topSiteId = siteId;
+            }
+          });
           totalAttacks += count;
-          companiesInfo.push({ company_id, count });
+          companiesInfo.push({ company_id, count, site_id: topSiteId });
         });
 
         flaggedIps.push({
@@ -76,20 +99,27 @@ export async function GET(request: Request) {
     // 4. Create alerts for affected companies of flagged IPs
     for (const threat of flaggedIps) {
       const { ip, companies: companiesInfo, totalAttacks } = threat;
-      const commaSeparatedCompanies = companiesInfo.map((c: any) => c.company_id).join(", ");
+      const commaSeparatedCompanies = companiesInfo
+        .map((c: any) => c.company_id)
+        .join(", ");
 
       for (const compInfo of companiesInfo) {
         // Check if an open alert already exists with title like 'Cross-site threat: IP %{ip}%'
-        const { data: existingAlert } = await supabase
+        let existingQuery = supabase
           .from("alerts")
           .select("id")
           .eq("company_id", compInfo.company_id)
           .eq("status", "open")
-          .like("title", `%Cross-site threat%${ip}%`)
-          .maybeSingle();
+          .like("title", `%Cross-site threat%${ip}%`);
+        existingQuery = compInfo.site_id
+          ? existingQuery.eq("site_id", compInfo.site_id)
+          : existingQuery.is("site_id", null);
+        const { data: existingAlert } = await existingQuery.maybeSingle();
 
         if (existingAlert) {
-          console.log(`Alert already exists for company ${compInfo.company_id} and IP ${ip}. Skipping.`);
+          console.log(
+            `Alert already exists for company ${compInfo.company_id} and IP ${ip}. Skipping.`,
+          );
           continue;
         }
 
@@ -98,6 +128,7 @@ export async function GET(request: Request) {
 
         const { error: insertError } = await supabase.from("alerts").insert({
           company_id: compInfo.company_id,
+          site_id: compInfo.site_id,
           severity: "high",
           title: alertTitle,
           description,
@@ -108,7 +139,7 @@ export async function GET(request: Request) {
         if (insertError) {
           console.error(
             `Failed to insert alert for company ${compInfo.company_id} regarding IP ${ip}:`,
-            insertError.message
+            insertError.message,
           );
         } else {
           alertedCompanies.add(compInfo.company_id);
@@ -126,7 +157,7 @@ export async function GET(request: Request) {
     console.error("Threat intelligence cron error:", error);
     return NextResponse.json(
       { error: error.message || "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { getCheckTargets } from "@/lib/queries/site-targets";
 import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
@@ -13,9 +14,7 @@ function getMaturity(score: number): string {
   return "Excellent";
 }
 
-type AuditAuth =
-  | { scope: "all" }
-  | { scope: "one"; companyId: string };
+type AuditAuth = { scope: "all" } | { scope: "one"; companyId: string };
 
 async function getAuditAuth(request: Request): Promise<AuditAuth | null> {
   // Path 1 — the scheduled GitHub Actions cron job, authenticated with CRON_SECRET.
@@ -27,25 +26,28 @@ async function getAuditAuth(request: Request): Promise<AuditAuth | null> {
   if (secretHeader && cronSecret) {
     const a = Buffer.from(secretHeader);
     const b = Buffer.from(cronSecret);
-    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return { scope: "all" };
+    if (a.length === b.length && crypto.timingSafeEqual(a, b))
+      return { scope: "all" };
   }
 
   // Any other caller must be a logged-in user — no secret sent from the browser here.
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return null;
 
   const admin = createAdminClient();
   const { data: profile } = await admin
-    .from('user_profiles')
-    .select('role, company_id')
-    .eq('id', user.id)
+    .from("user_profiles")
+    .select("role, company_id")
+    .eq("id", user.id)
     .single();
   if (!profile) return null;
 
   // Path 2 — an admin/super_admin manually running an audit. Runs for every company,
   // same as the cron path.
-  if (['admin', 'super_admin'].includes(profile.role)) return { scope: "all" };
+  if (["admin", "super_admin"].includes(profile.role)) return { scope: "all" };
 
   // Path 3 — a regular client clicking "Run Audit Now" on their own /app/hardening
   // page (see handleRunAudit in HardeningContent.tsx). This previously worked only
@@ -53,7 +55,7 @@ async function getAuditAuth(request: Request): Promise<AuditAuth | null> {
   // *anyone*, not just this client, trigger a full run across every company in the
   // system. Scoping this to exactly the caller's own company_id both closes that leak
   // and is the behavior the button was actually supposed to have.
-  if (profile.role === 'client' && profile.company_id) {
+  if (profile.role === "client" && profile.company_id) {
     return { scope: "one", companyId: profile.company_id };
   }
 
@@ -61,12 +63,12 @@ async function getAuditAuth(request: Request): Promise<AuditAuth | null> {
 }
 
 export async function GET(request: Request) {
-  console.log('[Audit] Started:', Date.now());
+  console.log("[Audit] Started:", Date.now());
   try {
     if (!process.env.CRON_SECRET) {
       return NextResponse.json(
         { error: "Server misconfiguration: CRON_SECRET is not set" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -81,7 +83,9 @@ export async function GET(request: Request) {
     //    own for a client-scoped request.
     let companiesQuery = supabase
       .from("companies")
-      .select("id, company_id, display_name, site_url, status, uptime_status, uptime_response_ms, last_uptime_check, last_seen_at")
+      .select(
+        "id, company_id, display_name, site_url, status, uptime_status, uptime_response_ms, last_uptime_check, last_seen_at",
+      )
       .eq("status", "active");
 
     if (auth.scope === "one") {
@@ -90,214 +94,262 @@ export async function GET(request: Request) {
 
     const { data: companies, error: companiesError } = await companiesQuery;
 
-    console.log('[Audit] Companies fetched:', Date.now());
+    console.log("[Audit] Companies fetched:", Date.now());
 
     if (companiesError) {
       console.error("Error fetching active companies:", companiesError);
-      return NextResponse.json({ error: "Failed to fetch companies" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Failed to fetch companies" },
+        { status: 500 },
+      );
     }
 
     const results = [];
 
-    // 3. Perform hardening checks for each active company
+    // 3. Perform hardening checks for each active site under each active company.
+    //    A company with multiple sites gets independent checks and scores per site —
+    //    previously this ran once per company using companies.site_url/uptime_status/
+    //    last_seen_at, so a second site under the same company was never checked at all.
     for (const company of companies) {
       const companyId = company.company_id;
-      const siteUrl = company.site_url;
-      const uptimeStatus = company.uptime_status || "unknown";
-      const lastSeenAt = company.last_seen_at;
+      const targets = await getCheckTargets(supabase, company);
 
-      // ── CHECK 1: https_enforced ──
-      console.log('[Audit] Checking https_enforced for', companyId, Date.now());
-      const check1Passed = !!(siteUrl && siteUrl.startsWith("https://"));
-      const check1 = {
-        key: "https_enforced",
-        name: "HTTPS Enforced",
-        category: "Network",
-        passed: check1Passed,
-        priority: "high",
-        failDescription: "Your site is not using HTTPS. All traffic is unencrypted.",
-        recommendation: "Install an SSL certificate and force HTTPS on your site.",
-        scoreImpact: 15,
-      };
-      console.log('[Audit] Done https_enforced:', Date.now());
+      for (const target of targets) {
+        const site_id = target.site_id;
+        const siteUrl = target.url;
+        const uptimeStatus = target.uptime_status || "unknown";
+        const lastSeenAt = target.last_seen_at;
 
-      // ── CHECK 2: no_critical_open_alerts ──
-      console.log('[Audit] Checking no_critical_open_alerts for', companyId, Date.now());
-      const { count: criticalCount, error: criticalErr } = await supabase
-        .from("alerts")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .eq("severity", "critical")
-        .eq("status", "open");
+        // ── CHECK 1: https_enforced ──
+        console.log(
+          "[Audit] Checking https_enforced for",
+          companyId,
+          siteUrl,
+          Date.now(),
+        );
+        const check1Passed = !!(siteUrl && siteUrl.startsWith("https://"));
+        const check1 = {
+          key: "https_enforced",
+          name: "HTTPS Enforced",
+          category: "Network",
+          passed: check1Passed,
+          priority: "high",
+          failDescription:
+            "Your site is not using HTTPS. All traffic is unencrypted.",
+          recommendation:
+            "Install an SSL certificate and force HTTPS on your site.",
+          scoreImpact: 15,
+        };
 
-      if (criticalErr) console.error("Err fetching critical alerts:", criticalErr.message);
-      const check2Passed = !criticalErr && (criticalCount || 0) === 0;
-      const check2 = {
-        key: "no_critical_open_alerts",
-        name: "No Critical Open Alerts",
-        category: "Alerts",
-        passed: check2Passed,
-        priority: "high",
-        failDescription: "You have unresolved critical security alerts on your site.",
-        recommendation: "Review and resolve all critical alerts immediately.",
-        scoreImpact: 20,
-      };
-      console.log('[Audit] Done no_critical_open_alerts:', Date.now());
+        // ── CHECK 2: no_critical_open_alerts (scoped to this specific site) ──
+        let critQuery = supabase
+          .from("alerts")
+          .select("*", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("severity", "critical")
+          .eq("status", "open");
+        critQuery = site_id
+          ? critQuery.eq("site_id", site_id)
+          : critQuery.is("site_id", null);
+        const { count: criticalCount, error: criticalErr } = await critQuery;
 
-      // ── CHECK 3: no_vulnerable_plugins ──
-      console.log('[Audit] Checking no_vulnerable_plugins for', companyId, Date.now());
-      const { count: vulnCount, error: vulnErr } = await supabase
-        .from("wpshield_vuln_alerts")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .eq("status", "open");
+        if (criticalErr)
+          console.error("Err fetching critical alerts:", criticalErr.message);
+        const check2Passed = !criticalErr && (criticalCount || 0) === 0;
+        const check2 = {
+          key: "no_critical_open_alerts",
+          name: "No Critical Open Alerts",
+          category: "Alerts",
+          passed: check2Passed,
+          priority: "high",
+          failDescription:
+            "You have unresolved critical security alerts on your site.",
+          recommendation: "Review and resolve all critical alerts immediately.",
+          scoreImpact: 20,
+        };
 
-      if (vulnErr) console.error("Err fetching vuln alerts:", vulnErr.message);
-      const check3Passed = !vulnErr && (vulnCount || 0) === 0;
-      const check3 = {
-        key: "no_vulnerable_plugins",
-        name: "No Vulnerable Plugins",
-        category: "Plugins",
-        passed: check3Passed,
-        priority: "high",
-        failDescription: "One or more plugins have known security vulnerabilities.",
-        recommendation: "Update all flagged plugins to their fixed versions immediately.",
-        scoreImpact: 20,
-      };
-      console.log('[Audit] Done no_vulnerable_plugins:', Date.now());
+        // ── CHECK 3: no_vulnerable_plugins (scoped to this specific site) ──
+        let vulnQuery = supabase
+          .from("wpshield_vuln_alerts")
+          .select("*", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("status", "open");
+        vulnQuery = site_id
+          ? vulnQuery.eq("site_id", site_id)
+          : vulnQuery.is("site_id", null);
+        const { count: vulnCount, error: vulnErr } = await vulnQuery;
 
-      // ── CHECK 4: uptime_healthy ──
-      console.log('[Audit] Checking uptime_healthy for', companyId, Date.now());
-      const check4Passed = uptimeStatus === "up";
-      const check4 = {
-        key: "uptime_healthy",
-        name: "Uptime Healthy",
-        category: "Availability",
-        passed: check4Passed,
-        priority: "high",
-        failDescription: "Your site is currently offline or unreachable.",
-        recommendation: "Check your hosting provider and restore your site immediately.",
-        scoreImpact: 15,
-      };
-      console.log('[Audit] Done uptime_healthy:', Date.now());
+        if (vulnErr)
+          console.error("Err fetching vuln alerts:", vulnErr.message);
+        const check3Passed = !vulnErr && (vulnCount || 0) === 0;
+        const check3 = {
+          key: "no_vulnerable_plugins",
+          name: "No Vulnerable Plugins",
+          category: "Plugins",
+          passed: check3Passed,
+          priority: "high",
+          failDescription:
+            "One or more plugins have known security vulnerabilities.",
+          recommendation:
+            "Update all flagged plugins to their fixed versions immediately.",
+          scoreImpact: 20,
+        };
 
-      // ── CHECK 5: plugin_heartbeat_recent ──
-      console.log('[Audit] Checking plugin_heartbeat_recent for', companyId, Date.now());
-      const check5Passed = !!(
-        lastSeenAt && Date.now() - new Date(lastSeenAt).getTime() <= 24 * 60 * 60 * 1000
-      );
-      const check5 = {
-        key: "plugin_heartbeat_recent",
-        name: "Plugin Heartbeat Recent",
-        category: "Monitoring",
-        passed: check5Passed,
-        priority: "medium",
-        failDescription: "WPShield plugin has not sent data in over 24 hours.",
-        recommendation: "Check if the WPShield plugin is active and properly configured.",
-        scoreImpact: 10,
-      };
-      console.log('[Audit] Done plugin_heartbeat_recent:', Date.now());
+        // ── CHECK 4: uptime_healthy (this site's own status, not the company's) ──
+        const check4Passed = uptimeStatus === "up";
+        const check4 = {
+          key: "uptime_healthy",
+          name: "Uptime Healthy",
+          category: "Availability",
+          passed: check4Passed,
+          priority: "high",
+          failDescription: "Your site is currently offline or unreachable.",
+          recommendation:
+            "Check your hosting provider and restore your site immediately.",
+          scoreImpact: 15,
+        };
 
-      // ── CHECK 6: no_high_open_alerts ──
-      console.log('[Audit] Checking no_high_open_alerts for', companyId, Date.now());
-      const { count: highCount, error: highErr } = await supabase
-        .from("alerts")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .eq("severity", "high")
-        .eq("status", "open");
+        // ── CHECK 5: plugin_heartbeat_recent (this site's own last_seen_at) ──
+        const check5Passed = !!(
+          lastSeenAt &&
+          Date.now() - new Date(lastSeenAt).getTime() <= 24 * 60 * 60 * 1000
+        );
+        const check5 = {
+          key: "plugin_heartbeat_recent",
+          name: "Plugin Heartbeat Recent",
+          category: "Monitoring",
+          passed: check5Passed,
+          priority: "medium",
+          failDescription:
+            "WPShield plugin has not sent data in over 24 hours.",
+          recommendation:
+            "Check if the WPShield plugin is active and properly configured.",
+          scoreImpact: 10,
+        };
 
-      if (highErr) console.error("Err fetching high alerts:", highErr.message);
-      const check6Passed = !highErr && (highCount || 0) < 10;
-      const check6 = {
-        key: "no_high_open_alerts",
-        name: "No High Open Alerts",
-        category: "Alerts",
-        passed: check6Passed,
-        priority: "medium",
-        failDescription: "You have many unresolved high severity alerts.",
-        recommendation: "Review and acknowledge or resolve high severity alerts.",
-        scoreImpact: 10,
-      };
-      console.log('[Audit] Done no_high_open_alerts:', Date.now());
+        // ── CHECK 6: no_high_open_alerts (scoped to this specific site) ──
+        let highQuery = supabase
+          .from("alerts")
+          .select("*", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("severity", "high")
+          .eq("status", "open");
+        highQuery = site_id
+          ? highQuery.eq("site_id", site_id)
+          : highQuery.is("site_id", null);
+        const { count: highCount, error: highErr } = await highQuery;
 
-      // ── CHECK 7: no_file_modification_alerts ──
-      console.log('[Audit] Checking no_file_modification_alerts for', companyId, Date.now());
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const { count: fileCount, error: fileErr } = await supabase
-        .from("alerts")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)
-        .eq("source_table", "wpshield_events_file")
-        .eq("status", "open")
-        .gte("created_at", sevenDaysAgo.toISOString());
+        if (highErr)
+          console.error("Err fetching high alerts:", highErr.message);
+        const check6Passed = !highErr && (highCount || 0) < 10;
+        const check6 = {
+          key: "no_high_open_alerts",
+          name: "No High Open Alerts",
+          category: "Alerts",
+          passed: check6Passed,
+          priority: "medium",
+          failDescription: "You have many unresolved high severity alerts.",
+          recommendation:
+            "Review and acknowledge or resolve high severity alerts.",
+          scoreImpact: 10,
+        };
 
-      if (fileErr) console.error("Err fetching file alerts:", fileErr.message);
-      const check7Passed = !fileErr && (fileCount || 0) === 0;
-      const check7 = {
-        key: "no_file_modification_alerts",
-        name: "No Recent File Modification Alerts",
-        category: "Files",
-        passed: check7Passed,
-        priority: "medium",
-        failDescription: "Unexpected file modifications detected on your site recently.",
-        recommendation: "Review all file change alerts and verify they were authorized.",
-        scoreImpact: 10,
-      };
-      console.log('[Audit] Done no_file_modification_alerts:', Date.now());
+        // ── CHECK 7: no_file_modification_alerts (scoped to this specific site) ──
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        let fileQuery = supabase
+          .from("alerts")
+          .select("*", { count: "exact", head: true })
+          .eq("company_id", companyId)
+          .eq("source_table", "wpshield_events_file")
+          .eq("status", "open")
+          .gte("created_at", sevenDaysAgo.toISOString());
+        fileQuery = site_id
+          ? fileQuery.eq("site_id", site_id)
+          : fileQuery.is("site_id", null);
+        const { count: fileCount, error: fileErr } = await fileQuery;
 
-      const checks = [check1, check2, check3, check4, check5, check6, check7];
+        if (fileErr)
+          console.error("Err fetching file alerts:", fileErr.message);
+        const check7Passed = !fileErr && (fileCount || 0) === 0;
+        const check7 = {
+          key: "no_file_modification_alerts",
+          name: "No Recent File Modification Alerts",
+          category: "Files",
+          passed: check7Passed,
+          priority: "medium",
+          failDescription:
+            "Unexpected file modifications detected on your site recently.",
+          recommendation:
+            "Review all file change alerts and verify they were authorized.",
+          scoreImpact: 10,
+        };
 
-      // Calculate score
-      const score = checks.reduce((sum, c) => (c.passed ? sum + c.scoreImpact : sum), 0);
+        const checks = [check1, check2, check3, check4, check5, check6, check7];
 
-      // Upsert checks
-      const checksToUpsert = checks.map((c) => ({
-        company_id: companyId,
-        check_key: c.key,
-        check_name: c.name,
-        category: c.category,
-        status: c.passed ? "pass" : "fail",
-        priority: c.priority,
-        description: c.passed ? "Check passed successfully." : c.failDescription,
-        recommendation: c.passed ? "No action required." : c.recommendation,
-        score_impact: c.scoreImpact,
-        last_checked_at: new Date().toISOString(),
-      }));
+        // Calculate score
+        const score = checks.reduce(
+          (sum, c) => (c.passed ? sum + c.scoreImpact : sum),
+          0,
+        );
 
-      console.log('[Audit] Upserting results:', Date.now());
-      const { error: upsertError } = await supabase
-        .from("wpshield_hardening_results")
-        .upsert(checksToUpsert, { onConflict: "company_id,check_key" });
-
-      if (upsertError) {
-        console.error(`Failed to upsert hardening results for ${companyId}:`, upsertError.message);
-      }
-      console.log('[Audit] Upsert done:', Date.now());
-
-      results.push({
-        company_id: companyId,
-        display_name: company.display_name || companyId,
-        score,
-        maturity: getMaturity(score),
-        checks: checks.map((c) => ({
-          key: c.key,
-          name: c.name,
+        // Upsert checks — keyed by (company_id, site_id, check_key) now, not just
+        // (company_id, check_key), so each site under a company gets its own row
+        // instead of overwriting a single shared one.
+        const checksToUpsert = checks.map((c) => ({
+          company_id: companyId,
+          site_id,
+          check_key: c.key,
+          check_name: c.name,
           category: c.category,
-          passed: c.passed,
+          status: c.passed ? "pass" : "fail",
+          priority: c.priority,
+          description: c.passed
+            ? "Check passed successfully."
+            : c.failDescription,
+          recommendation: c.passed ? "No action required." : c.recommendation,
           score_impact: c.scoreImpact,
-        })),
-      });
+          last_checked_at: new Date().toISOString(),
+        }));
+
+        const { error: upsertError } = await supabase
+          .from("wpshield_hardening_results")
+          .upsert(checksToUpsert, {
+            onConflict: "company_id,site_id,check_key",
+          });
+
+        if (upsertError) {
+          console.error(
+            `Failed to upsert hardening results for ${companyId} (${siteUrl}):`,
+            upsertError.message,
+          );
+        }
+
+        results.push({
+          company_id: companyId,
+          site_id,
+          site_url: siteUrl,
+          display_name: company.display_name || companyId,
+          score,
+          maturity: getMaturity(score),
+          checks: checks.map((c) => ({
+            key: c.key,
+            name: c.name,
+            category: c.category,
+            passed: c.passed,
+            score_impact: c.scoreImpact,
+          })),
+        });
+      }
     }
 
-    console.log('[Audit] Completed:', Date.now());
+    console.log("[Audit] Completed:", Date.now());
     return NextResponse.json({ success: true, results });
   } catch (error: any) {
     console.error("Hardening audit cron failed:", error);
     return NextResponse.json(
       { error: error.message || "Internal Server Error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
