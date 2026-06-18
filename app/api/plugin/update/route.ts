@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     // 3. Fetch the latest release.
     const { data: release, error } = await supabase
       .from('plugin_releases')
-      .select('version, zip_path, changelog, released_at, signature')
+      .select('version, zip_path, changelog, released_at, signature, sha256_checksum')
       .eq('is_latest', true)
       .single();
 
@@ -79,6 +79,7 @@ export async function GET(request: Request) {
       changelog:    release.changelog,
       released_at:  release.released_at,
       signature:    release.signature, // base64 ECDSA signature of the zip's sha256 hash
+      sha256:       release.sha256_checksum, // independent checksum, verified alongside the signature
       name:         'WPShield Security',
       slug:         'cybernara-wpshield',
       author:       'Cybernara',

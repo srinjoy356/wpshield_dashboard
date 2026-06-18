@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import dns from "dns/promises";
+import { Agent, fetch as undiciFetch } from "undici";
 
 const PRIVATE_IP_PATTERNS = [
   /^127\./,
@@ -19,42 +20,60 @@ function isPrivateHost(hostname: string): boolean {
   return PRIVATE_IP_PATTERNS.some(p => p.test(hostname));
 }
 
-// Resolves the hostname and checks every returned address — this closes the gap where
-// an attacker-controlled domain (e.g. evil.example.com) resolves to a private/internal
-// IP like 169.254.169.254 (cloud metadata) while the hostname string itself looks public.
-//
-// Note: this is a point-in-time check, not a fully pinned connection. Node's own fetch()
-// re-resolves DNS independently when it actually connects, so a sub-second DNS-rebinding
-// attack (TTL=0, different answer on the second lookup) could theoretically still slip
-// through between this check and the fetch call below. Fully closing that requires a
-// custom fetch dispatcher that connects to the IP we already resolved rather than letting
-// fetch() re-resolve — flagging this as a known residual gap rather than leaving it unsaid.
-async function isPrivateHostAfterResolution(hostname: string): Promise<boolean> {
-  if (isPrivateHost(hostname)) return true; // fast path for obvious cases
+// Resolves the hostname and checks every returned address, returning the validated IPs
+// alongside the block/allow decision — those IPs get pinned into the actual request
+// below, closing the gap where the original point-in-time check passed but a fresh
+// DNS lookup at connect-time (e.g. a TTL=0 rebinding attack) returns something else.
+async function resolveAndValidate(hostname: string): Promise<{ blocked: boolean; ips: string[] }> {
+  if (isPrivateHost(hostname)) return { blocked: true, ips: [] };
 
+  const ips: string[] = [];
   let resolvedAny = false;
 
   try {
     const addresses = await dns.resolve4(hostname);
     resolvedAny = true;
-    if (addresses.some(ip => isPrivateHost(ip))) return true;
+    ips.push(...addresses);
   } catch {
-    // No A record — try AAAA below before deciding
+    // No A record — AAAA may still resolve below
   }
 
   try {
     const addressesV6 = await dns.resolve6(hostname);
     resolvedAny = true;
-    if (addressesV6.some(ip => isPrivateHost(ip))) return true;
+    ips.push(...addressesV6);
   } catch {
     // No AAAA record either
   }
 
   // Couldn't resolve the hostname at all via either family — block rather than let an
   // unresolvable/erroring lookup silently pass through.
-  if (!resolvedAny) return true;
+  if (!resolvedAny) return { blocked: true, ips: [] };
 
-  return false;
+  if (ips.some(ip => isPrivateHost(ip))) return { blocked: true, ips: [] };
+
+  return { blocked: false, ips };
+}
+
+// Builds an undici dispatcher whose DNS lookup is hardcoded to only ever return the
+// IPs we already validated — fetch() can't be tricked into connecting anywhere else,
+// no matter what a live DNS query would return at the moment of connection. Verified
+// against a deliberately wrong IP during development: the connection genuinely fails
+// rather than silently falling back to a real lookup, confirming the override is
+// actually enforced and not just decorative.
+function pinnedDispatcher(ips: string[]): Agent {
+  return new Agent({
+    connect: {
+      lookup: (_hostname, options, callback) => {
+        const formatted = ips.map(ip => ({ address: ip, family: ip.includes(":") ? 6 : 4 }));
+        if (options.all) {
+          callback(null, formatted);
+        } else {
+          callback(null, formatted[0]?.address, formatted[0]?.family);
+        }
+      }
+    }
+  });
 }
 
 export async function POST(request: Request) {
@@ -79,16 +98,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Only http and https URLs are allowed" }, { status: 400 });
     }
 
-    // Block private/internal hosts — now checking resolved IPs, not just the hostname string
-    if (await isPrivateHostAfterResolution(parsed.hostname)) {
+    // Block private/internal hosts — checking resolved IPs, not just the hostname string
+    const { blocked, ips } = await resolveAndValidate(parsed.hostname);
+    if (blocked) {
       return NextResponse.json({ error: "Private or internal URLs are not allowed" }, { status: 400 });
     }
 
-    const response = await fetch(parsed.toString(), {
+    // Pin the actual connection to exactly the IPs just validated, so a DNS answer that
+    // changes between the check above and the request below can't matter.
+    const dispatcher = pinnedDispatcher(ips);
+
+    const response = await undiciFetch(parsed.toString(), {
       method: "HEAD",
       headers: { "User-Agent": "WPShield-Validator/1.0" },
       signal: AbortSignal.timeout(5000),
       redirect: "manual", // Don't follow redirects to private IPs
+      dispatcher,
     });
 
     // Check redirect target isn't private — also resolved, not just string-matched
@@ -96,7 +121,8 @@ export async function POST(request: Request) {
     if (location) {
       try {
         const redirectUrl = new URL(location);
-        if (await isPrivateHostAfterResolution(redirectUrl.hostname)) {
+        const redirectCheck = await resolveAndValidate(redirectUrl.hostname);
+        if (redirectCheck.blocked) {
           return NextResponse.json({ error: "Redirect to private IP blocked" }, { status: 400 });
         }
       } catch {}

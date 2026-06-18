@@ -45,6 +45,12 @@ export async function POST(request: Request) {
     const buffer   = Buffer.from(await file.arrayBuffer());
     const filename = `cybernara-wpshield-${version}.zip`;
     const signature = signRelease(buffer);
+    // RG-13: store an independent checksum alongside the signature — this lets anyone
+    // (an admin, a support investigation, or the plugin itself as a second check
+    // alongside signature verification) confirm a downloaded zip exactly matches what
+    // was uploaded, without needing the signing keypair at all.
+    const sha256Checksum = crypto.createHash('sha256').update(buffer).digest('hex');
+    const fileSizeBytes  = buffer.length;
 
     const adminSupabase = createAdminClient();
 
@@ -79,6 +85,9 @@ export async function POST(request: Request) {
       .from('plugin_releases')
       .insert({
         version, changelog, zip_path, zip_url, signature,
+        sha256_checksum: sha256Checksum,
+        file_size_bytes: fileSizeBytes,
+        signing_key_id:  process.env.PLUGIN_SIGNING_KEY_ID || 'default',
         is_latest:   true,
         released_by: profile.id,
       })
@@ -106,7 +115,7 @@ export async function GET() {
     const adminSupabase = createAdminClient();
     const { data: releases } = await adminSupabase
       .from('plugin_releases')
-      .select('id, version, changelog, zip_url, is_latest, released_at')
+      .select('id, version, changelog, zip_url, sha256_checksum, file_size_bytes, is_latest, released_at')
       .order('released_at', { ascending: false });
 
     return NextResponse.json({ releases: releases || [] });

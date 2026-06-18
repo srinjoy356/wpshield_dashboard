@@ -17,7 +17,7 @@ export async function verifySiteToken(request: Request) {
   const supabase = createAdminClient();
   const { data: siteToken } = await supabase
     .from('site_tokens')
-    .select('site_id, revoked')
+    .select('id, site_id, revoked, last_used_at')
     .eq('token_hash', tokenHash)
     .maybeSingle();
 
@@ -33,6 +33,18 @@ export async function verifySiteToken(request: Request) {
 
   if (!site) {
     return { error: 'Site not found', status: 404 };
+  }
+
+  // Throttled write: only touch last_used_at once per hour per token, rather than on
+  // every single ingest call (this route gets hit far too often for a write every
+  // time to be worth the extra DB load). Fire-and-forget — a missed update here
+  // should never block or slow down the actual request being authenticated.
+  const lastUsed = siteToken.last_used_at ? new Date(siteToken.last_used_at).getTime() : 0;
+  if (Date.now() - lastUsed > 60 * 60 * 1000) {
+    supabase.from('site_tokens')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', siteToken.id)
+      .then(() => {}, (err) => console.error('[verifySiteToken] last_used_at update failed:', err));
   }
 
   return { site, site_id: siteToken.site_id };
@@ -67,10 +79,28 @@ export async function requireAdmin(supabase: SupabaseClient) {
   const userCheck = await requireUser(supabase);
   if (!userCheck.allowed) return userCheck;
 
-  if (userCheck.profile.role !== 'admin') {
+  // middleware.ts already treats 'admin' and 'super_admin' as equivalent for page
+  // routing — this had fallen out of sync, only accepting 'admin', so a super_admin
+  // could see the admin UI shell but get 403'd on the API routes behind it.
+  if (userCheck.profile.role !== 'admin' && userCheck.profile.role !== 'super_admin') {
     return { 
       allowed: false, 
       response: NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
+    };
+  }
+
+  return { allowed: true, user: userCheck.user, profile: userCheck.profile };
+}
+
+/** Stricter variant for actions that should be super_admin-only (e.g. managing other admins). */
+export async function requireSuperAdmin(supabase: SupabaseClient) {
+  const userCheck = await requireUser(supabase);
+  if (!userCheck.allowed) return userCheck;
+
+  if (userCheck.profile.role !== 'super_admin') {
+    return {
+      allowed: false,
+      response: NextResponse.json({ error: 'Forbidden: Super admin access required' }, { status: 403 })
     };
   }
 

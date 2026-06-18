@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Srinjoy Roy — The Split</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,200..900;1,8..60,200..900&amp;family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "primary-fixed-dim": "#d4c3b8",
+                "inverse-on-surface": "#f1f1f1",
+                "on-secondary-fixed-variant": "#3f465f",
+                "on-error": "#ffffff",
+                "on-primary-container": "#8f8177",
+                "tertiary-container": "#1c1c19",
+                "surface-variant": "#e2e2e2",
+                "surface": "#f9f9f9",
+                "surface-tint": "#685c53",
+                "tertiary-fixed-dim": "#c8c6c2",
+                "outline-variant": "#d0c4bc",
+                "on-tertiary-fixed-variant": "#474743",
+                "tertiary": "#000000",
+                "inverse-primary": "#d4c3b8",
+                "on-surface": "#1b1b1b",
+                "background": "#f9f9f9",
+                "surface-container-lowest": "#ffffff",
+                "surface-dim": "#dadada",
+                "surface-container-highest": "#e2e2e2",
+                "error": "#ba1a1a",
+                "secondary-fixed": "#dce1ff",
+                "on-error-container": "#93000a",
+                "on-tertiary-container": "#858480",
+                "secondary-container": "#d8defe",
+                "on-secondary": "#ffffff",
+                "surface-container-low": "#f3f3f3",
+                "on-surface-variant": "#4d453f",
+                "error-container": "#ffdad6",
+                "on-secondary-container": "#5b617d",
+                "surface-container-high": "#e8e8e8",
+                "primary-fixed": "#f1dfd3",
+                "secondary-fixed-dim": "#bfc5e4",
+                "secondary": "#575d78",
+                "primary-container": "#221a13",
+                "surface-container": "#eeeeee",
+                "on-tertiary-fixed": "#1c1c19",
+                "tertiary-fixed": "#e5e2dd",
+                "on-tertiary": "#ffffff",
+                "on-background": "#1b1b1b",
+                "on-primary-fixed-variant": "#50453c",
+                "inverse-surface": "#303030",
+                "outline": "#7f756e",
+                "on-secondary-fixed": "#141a32",
+                "primary": "#000000",
+                "on-primary": "#ffffff",
+                "surface-bright": "#f9f9f9",
+                "on-primary-fixed": "#221a13"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "unit": "8px",
+                "margin-edge": "64px",
+                "overlap-negative": "-40px",
+                "gutter": "32px",
+                "section-gap": "160px"
+        },
+        "fontFamily": {
+                "body-sm": [
+                        "\"Source Serif 4\""
+                ],
+                "display-lg": [
+                        "Playfair Display"
+                ],
+                "label-mono": [
+                        "JetBrains Mono"
+                ],
+                "display-xl": [
+                        "Playfair Display"
+                ],
+                "meta-code": [
+                        "JetBrains Mono"
+                ],
+                "display-lg-mobile": [
+                        "Playfair Display"
+                ],
+                "headline-md": [
+                        "Playfair Display"
+                ],
+                "body-lg": [
+                        "\"Source Serif 4\""
+                ]
+        },
+        "fontSize": {
+                "body-sm": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "display-lg": [
+                        "80px",
+                        {
+                                "lineHeight": "88px",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "label-mono": [
+                        "10px",
+                        {
+                                "lineHeight": "14px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "display-xl": [
+                        "120px",
+                        {
+                                "lineHeight": "110px",
+                                "letterSpacing": "-0.04em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "meta-code": [
+                        "11px",
+                        {
+                                "lineHeight": "16px",
+                                "letterSpacing": "0.1em",
+                                "fontWeight": "500"
+                        }
+                ],
+                "display-lg-mobile": [
+                        "48px",
+                        {
+                                "lineHeight": "52px",
+                                "fontWeight": "600"
+                        }
+                ],
+                "headline-md": [
+                        "42px",
+                        {
+                                "lineHeight": "48px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "body-lg": [
+                        "20px",
+                        {
+                                "lineHeight": "32px",
+                                "fontWeight": "400"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+  /* Asymmetrical Editorial Utilities */
+  .grid-editorial {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 32px;
+  }
+  .clip-reveal {
+    clip-path: polygon(0 100%, 100% 100%, 100% 100%, 0% 100%);
+    animation: slideUpReveal 1.2s cubic-bezier(0.77, 0, 0.175, 1) forwards;
+  }
+  @keyframes slideUpReveal {
+    to { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); }
+  }
+  .split-text-overlap {
+    mix-blend-mode: difference;
+  }
+  /* Lazy reveal mask for images */
+  .img-mask-reveal {
+    overflow: hidden;
+  }
+  .img-mask-reveal img, .img-mask-reveal div {
+    transform: scale(1.1);
+    transition: transform 1.5s cubic-bezier(0.19, 1, 0.22, 1);
+  }
+  .img-mask-reveal.revealed img, .img-mask-reveal.revealed div {
+    transform: scale(1);
+  }
+
+  /* Preloader Styles */
+  #preloader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #1b1b1b;
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: transform 1.5s cubic-bezier(0.77, 0, 0.175, 1), opacity 1.5s cubic-bezier(0.77, 0, 0.175, 1);
+  }
+  #preloader.hide {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .preloader-text-wrapper {
+    overflow: hidden;
+  }
+  .preloader-text {
+    color: #ffffff;
+    font-family: "Playfair Display", serif;
+    font-size: 80px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    transform: translateY(100%);
+    transition: transform 1.2s cubic-bezier(0.77, 0, 0.175, 1);
+  }
+  .preloader-text.show {
+    transform: translateY(0);
+  }
+
+  /* Hero Animation Hooks */
+  .hero-animated-el {
+    opacity: 0;
+    transform: translateY(40px);
+    transition: opacity 1.2s cubic-bezier(0.77, 0, 0.175, 1), transform 1.2s cubic-bezier(0.77, 0, 0.175, 1);
+  }
+  .hero-animated-el.hero-reveal {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .hero-panel-reveal {
+    clip-path: polygon(0 100%, 100% 100%, 100% 100%, 0% 100%);
+    transition: clip-path 1.5s cubic-bezier(0.77, 0, 0.175, 1);
+  }
+  .hero-panel-reveal.hero-reveal {
+    clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+  }
+
+  body.no-scroll {
+    overflow: hidden;
+  }
+</style>
+</head>
+<body class="bg-background text-on-surface antialiased overflow-x-hidden selection:bg-tertiary selection:text-on-tertiary no-scroll">
+<!-- Preloader Overlay -->
+<div id="preloader">
+<div class="preloader-text-wrapper">
+<div class="preloader-text" id="preloader-title">THE SPLIT</div>
+</div>
+</div>
+<!-- TopNavBar Shared Component -->
+<nav class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-margin-edge py-unit bg-transparent mix-blend-difference text-white hero-animated-el" style="transition-delay: 0.8s;">
+<div class="font-display-lg text-headline-md tracking-tighter mix-blend-difference text-white">
+    Srinjoy Roy
+  </div>
+<div class="hidden md:flex gap-8 font-label-mono text-label-mono tracking-widest uppercase">
+<a class="text-white hover:text-white/60 transition-colors duration-300" href="#projects">Projects</a>
+<a class="text-white hover:text-white/60 transition-colors duration-300" href="#experience">Experience</a>
+<a class="text-white hover:text-white/60 transition-colors duration-300" href="#gallery">Gallery</a>
+</div>
+<div class="flex gap-4 font-label-mono text-label-mono tracking-widest uppercase items-center">
+<span class="text-white/60 cursor-pointer hover:text-white transition-colors duration-300">Architect</span>
+<span class="h-px w-4 bg-white"></span>
+<span class="text-white border-b border-white pb-1 cursor-pointer">Artist</span>
+</div>
+</nav>
+<!-- Screen 1: Home (The Split) -->
+<section class="relative w-full min-h-screen flex flex-col md:flex-row overflow-hidden">
+<!-- Left: The Architect -->
+<div class="w-full md:w-1/2 min-h-[512px] md:min-h-screen bg-surface-container-low relative border-r border-outline-variant/30 flex items-center justify-center overflow-hidden hero-panel-reveal" style="transition-delay: 0.2s;">
+<!-- Subtle Grid Lines -->
+<div class="absolute inset-0 bg-[linear-gradient(to_right,#e2e2e2_1px,transparent_1px),linear-gradient(to_bottom,#e2e2e2_1px,transparent_1px)] bg-[size:4rem_4rem] opacity-30"></div>
+<!-- Floating Code Snippets -->
+<div class="absolute top-1/4 left-10 font-meta-code text-meta-code text-on-surface-variant/40 mix-blend-multiply hero-animated-el" style="transition-delay: 1.2s;">
+<pre>def optimize_model(params):
+  model = MLflow.load_model()
+  return model.predict(params)
+      </pre>
+</div>
+<div class="absolute bottom-1/4 right-10 font-meta-code text-meta-code text-on-surface-variant/40 mix-blend-multiply text-right hero-animated-el" style="transition-delay: 1.4s;">
+<pre>import torch.nn as nn
+class ResidualBlock(nn.Module):
+    # architecture logic
+      </pre>
+</div>
+</div>
+<!-- Right: The Artist -->
+<div class="w-full md:w-1/2 min-h-[512px] md:min-h-screen bg-primary-fixed-dim relative flex items-center justify-center img-mask-reveal hero-panel-reveal" style="transition-delay: 0.4s;">
+<div class="absolute inset-0 bg-cover bg-center opacity-80 mix-blend-overlay" data-alt="A high-end, editorial, candid portrait of a creative individual in a stark, minimalist concrete studio. Warm natural sunlight rakes across the scene, highlighting organic textures against the cold architecture. The image possesses a sophisticated, archival film photography aesthetic with high-contrast planes and deep shadows, embodying an editorial brutalism style." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAQaUwqKO4stR2z9L3-YwYPLN84lIp9pM6LqH5yAPlyQAw2ExyJnUl6W_E5IT0DHD9fzwfANyiNjdvGKmhBFw8X9q8Hn3gvkm88rhqSx-NKOqWAw1dwMxOssPrPxxG5gnQPEszipR0S7ymJk6bYbLCfdPmXNWqgrmuWtdSgFmeAUQtdLjs3I4g8QxKP3Zk1DtNio-OD2GYSqLAebJEJHSLQNE9BYQaJTNdgE3WT87qTPRVzqTbG78DO3K_ogfO9n04FCHF2BHjmUQ')"></div>
+<!-- Photography Metadata Overlays -->
+<div class="absolute top-1/4 right-10 font-meta-code text-meta-code text-primary mix-blend-multiply flex flex-col items-end gap-1 hero-animated-el" style="transition-delay: 1.6s;">
+<span>ISO 400</span>
+<span>f/1.4</span>
+<span>1/250s</span>
+<span>35mm</span>
+</div>
+<div class="absolute bottom-1/4 left-10 font-meta-code text-meta-code text-primary mix-blend-multiply hero-animated-el" style="transition-delay: 1.8s;">
+<span>N 40° 42' 46" / W 74° 0' 21"</span>
+<br/>
+<span>RAW_CAPTURE_001</span>
+</div>
+</div>
+<!-- Central Massive Headline -->
+<div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10 text-center px-4">
+<h1 class="font-display-xl text-display-lg-mobile md:text-display-xl text-white mix-blend-difference tracking-tighter leading-none mb-6 hero-animated-el" style="transition-delay: 0.8s;">
+      SRINJOY ROY
+    </h1>
+<p class="font-body-sm text-body-sm md:font-body-lg md:text-body-lg text-white mix-blend-difference max-w-xl mx-auto hero-animated-el" style="transition-delay: 1.0s;">
+      Moving AI from notebook to production. Merging machine logic with creative vision.
+    </p>
+</div>
+</section>
+<!-- Screen 2: Projects (Editorial Spread) -->
+<section class="py-section-gap px-margin-edge w-full bg-surface" id="projects">
+<div class="mb-gutter max-w-2xl">
+<h2 class="font-display-lg text-headline-md md:text-display-lg mb-4">Selected Archival Works</h2>
+<p class="font-meta-code text-meta-code text-on-surface-variant uppercase tracking-widest">Register 2024-2025 // Production ML</p>
+</div>
+<!-- Feature 1: MetaMark -->
+<div class="relative w-full min-h-[819px] bg-tertiary text-on-tertiary mb-section-gap grid-editorial img-mask-reveal group">
+<div class="absolute inset-0 bg-cover bg-center opacity-40 transition-opacity duration-700 group-hover:opacity-60" data-alt="A sleek, high-tech interface abstract representation of an AI Legal Metrology compliance dashboard. The visuals are dense with technical metadata, floating graphs, and cold precision lines over a dark void background. Minimalist but data-heavy, capturing a cybernetic, high-end lab report aesthetic with high-contrast tonal layering." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDHRvIxDd8uwwFEgKVAdI2kRuWZPArnyZh4-lmJSV7j6GVdEdDJqjrw8qTPtXtUSzAwzkC2TPQV7b15EXDuo5G7LnMi-ts3KSwdEMSL2Jmdmr2B7dAKdIR_KNRs_3vf8_hGzSvDLmP45ETwerS2pn-vb7RU1it3CRa_LK5umScvcSqrM5mZPnY-03bnq-2XDwECH-zcVeETHRBRIVCAnRKNx327ZGUpnrmRMBkFAfmmK16VyWbzC52n9x8hmd_KBLmxWmn0YRSjgA')"></div>
+<div class="col-span-12 md:col-span-5 z-10 flex flex-col justify-end p-8 md:p-16 h-full border-r border-white/10 bg-tertiary/40 backdrop-blur-sm">
+<span class="font-display-xl text-[180px] leading-none opacity-20 absolute top-[-40px] left-[-20px] pointer-events-none">01</span>
+<h3 class="font-display-lg text-headline-md md:text-display-lg mb-4 relative z-10">MetaMark</h3>
+<p class="font-body-sm text-body-sm text-on-tertiary/80 mb-8 max-w-md">National Winner, Smart India Hackathon 2025. AI-driven Legal Metrology Compliance streamlining architectural and engineering data pipelines.</p>
+<!-- Data-Strip -->
+<div class="w-full h-px bg-white/30 mb-4"></div>
+<div class="flex justify-between font-meta-code text-meta-code text-white/60">
+<span>TECH_STACK: PYTHON, MLFLOW, REACT</span>
+<span class="cursor-pointer hover:text-white uppercase border-b border-transparent hover:border-white transition-all">View Record</span>
+</div>
+</div>
+</div>
+<!-- Feature 2: Nirvana SmartChain -->
+<div class="grid-editorial relative">
+<div class="col-span-12 md:col-start-7 md:col-span-6 z-10 mt-20 md:mt-0 order-2 md:order-1 relative pb-20">
+<span class="font-display-xl text-[120px] leading-none opacity-10 absolute top-[-60px] right-0 pointer-events-none">02</span>
+<h3 class="font-display-lg text-headline-md md:text-display-lg mb-4">Nirvana SmartChain</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-8 max-w-md">Pharma Safety ML. Predictive modeling for supply chain integrity, merging deep learning with robust architectural patterns.</p>
+<!-- Data-Strip -->
+<div class="w-full h-px bg-outline-variant mb-4"></div>
+<div class="flex justify-between font-meta-code text-meta-code text-on-surface-variant">
+<span>TECH_STACK: PYTORCH, DOCKER, KUBERNETES</span>
+<span class="cursor-pointer text-primary hover:text-on-surface-variant uppercase border-b border-primary transition-all">View Record</span>
+</div>
+</div>
+<!-- Image Overlapping Grid -->
+<div class="col-span-12 md:col-span-7 img-mask-reveal relative z-0 md:-ml-overlap-negative order-1 md:order-2 h-[614px] bg-surface-container-high">
+<div class="absolute inset-0 bg-cover bg-center" data-alt="An abstract visualization of a pharmaceutical supply chain secured by machine learning. It features asymmetrical, overlapping blocks of data arrays, pill motifs, and secure blockchain node connections. The palette utilizes pristine whites, warm cream base, and deep navy hard-edged islands, presenting an editorial brutalism style without ambient shadows, relying on z-index overlaps." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAAY0UZnpBtsajGzSyoZpQ-0ijAGbr_Qvb_eWO_F5Qsu8WltlG2ZVKvQanHt3i5WUY1HnLXOevfgJcEDf4GQl-4Q2xA2Ul2v-n1A584tv4mQxSAoj_ILLA-k1fmPKbAa4LZFlVQnCR_tzggfnYRx1x8k22o_bgoAw_0-EtCucT-1Nf8ICNwdtDe1lTuhVGw6FKc7qZ4Vxf9hlzKvtOm405mX3OJQsHAAFcW3Xu4fjx93AqEXYfS8LkOXDjfH5BREP5a0LJVha4Iqg')"></div>
+</div>
+</div>
+</section>
+<!-- Screen 3: Experience & Background (Sticky Scroll) -->
+<section class="w-full min-h-screen bg-tertiary-container text-on-tertiary flex flex-col md:flex-row relative" id="experience">
+<!-- Sticky Text Content -->
+<div class="w-full md:w-1/2 p-margin-edge sticky top-0 h-screen flex flex-col justify-center border-r border-white/10 z-10">
+<h2 class="font-display-lg text-display-lg-mobile md:text-display-lg mb-12">The Trajectory</h2>
+<!-- Experience Registers -->
+<div class="flex flex-col gap-8">
+<div class="flex gap-4 group">
+<span class="font-meta-code text-meta-code text-white/40 mt-2">01</span>
+<div>
+<h4 class="font-headline-md text-headline-md mb-2 group-hover:text-primary-fixed transition-colors">WAF Engineering</h4>
+<p class="font-body-sm text-body-sm text-white/60">Terminal-style cybersecurity environment operations. Building resilient defense mechanisms at scale.</p>
+</div>
+</div>
+<div class="flex gap-4 group ml-8">
+<span class="font-meta-code text-meta-code text-white/40 mt-2">02</span>
+<div>
+<h4 class="font-headline-md text-headline-md mb-2 group-hover:text-primary-fixed transition-colors">MLOps Architect</h4>
+<p class="font-body-sm text-body-sm text-white/60">Open-source collaboration visualization (MLflow). Standardizing notebook-to-production pipelines.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Scrolling Visual Background -->
+<div class="w-full md:w-1/2 min-h-[2048px] relative hidden md:block">
+<div class="sticky top-0 h-screen overflow-hidden flex items-center justify-center p-8 bg-black">
+<div class="w-full h-3/4 bg-cover bg-center opacity-50 img-mask-reveal mix-blend-screen grayscale contrast-125" data-alt="A terminal-style cybersecurity environment visualization. Dense, glowing green and white code snippets overlap against a stark black void. The composition is highly technical, resembling a high-end data server interface or a minimalist hacker console, embodying archival prestige and high-contrast digital planes." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCQyCNfhICRC_2KcxXC46Gii7ZPnf0ShPR9eE8IDG0PQd6XtuxwjYAKkl_rVysAnExCLcTgCdHi2mp7ZM28MZOHMqXnhGHWryeweGrxq8UF0s-C6qjiSSp4dmFZjp4O9eXfwTuTatRRBXC8GTU4nszaDTSyhD-cyAmQx0_56CrurodATHBFxLfJnd2ZYU1jtKWfeLCm3MawHZfgpoIB3qKdaMMw2cvwEXWz0Mrrmj_bTQoCx5hwyDxjcEaEd_gXvghcSqWpAp0G9A')"></div>
+<!-- Overlaying Data Strip for Visuals -->
+<div class="absolute bottom-20 right-20 font-meta-code text-meta-code text-white text-right">
+<span>LOG_FILE_ANOMALY_DETECTED</span><br/>
+<span class="text-white/50">TIMESTAMP: 1714521600</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Screen 4: Beyond the Code (Gallery) -->
+<section class="py-section-gap px-margin-edge w-full bg-surface-container-low min-h-screen" id="gallery">
+<div class="flex flex-col md:flex-row justify-between items-end mb-gutter">
+<div>
+<h2 class="font-display-lg text-headline-md md:text-display-lg mb-2">Beyond the Code</h2>
+<p class="font-meta-code text-meta-code text-on-surface-variant tracking-widest uppercase">Visual Archives // 35mm &amp; Digital</p>
+</div>
+<button class="font-label-mono text-label-mono text-primary uppercase border-b border-primary pb-1 hover:bg-primary hover:text-on-primary transition-all duration-300 mt-4 md:mt-0">View Full Archive</button>
+</div>
+<!-- Sophisticated Masonry Grid (Bento/Asymmetric) -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-unit auto-rows-[300px]">
+<!-- Large Feature (Candid) -->
+<div class="md:col-span-8 row-span-2 relative img-mask-reveal group cursor-none overflow-hidden bg-surface-variant">
+<div class="absolute inset-0 bg-cover bg-center grayscale transition-all duration-700 group-hover:grayscale-0 group-hover:scale-105" data-alt="A high-res, beautifully composed candid photography shot of an urban architectural scene. The image is initially stark, monochrome, and minimalist. It captures the interplay of harsh sunlight and deep shadows on concrete brutalist structures, evoking a high-end art monograph feel." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuA_rmsu1F8n9qJ1HEcGBcLNMegrYJ3KZMd6WbF8dEi2Z3ibtHJYc2JmvCfTWhj3OMtw20Yx_WHoQPHfxXP4E4iLvwMv1E-rFg_umD411O8wFCI0wCh4HM8IJ5Ugdd-d_e94rzUHuLpprjXlmbhcuszJ0vKth4vQVl9IgjLm8AcH5UiZaFF2tQmiQjaVTaWAJtXOKvJag_ISNiLQuQHmg8nTa8juN9fA_VfZcKGHsR7KJNfDkQmeXS0lpZuZatPNOAL84akVbp_DUg')"></div>
+<div class="absolute bottom-4 left-4 font-meta-code text-meta-code text-white bg-black/50 px-2 py-1 backdrop-blur-md">ARCH_CANDID_01</div>
+</div>
+<!-- Small Feature (Videography placeholder) -->
+<div class="md:col-span-4 row-span-1 relative img-mask-reveal group cursor-none overflow-hidden bg-tertiary-fixed">
+<div class="absolute inset-0 bg-cover bg-center grayscale transition-all duration-700 group-hover:grayscale-0 group-hover:scale-105" data-alt="A cinematic, moody placeholder for a videography reel. It features an abstract blur of neon lights and dark silhouettes, resembling an avant-garde short film still. The aesthetic is gritty yet refined, emphasizing tonal depth over ambient shadows." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuCPBpwZ5zTXYaCmucExTzQY5hQUeAMh0taInOq4tJAzr12bFx4QQmKQ4bxXDXrr7i-mctn3u-CrOWCnT-mmSL1fD6OZE1NE5DxcyjG6jztA9LbeNpyQd4ILufpSVlehd6geWCVxmX6R-wJxxpKOlV2tm689LF6Z_csHlRzV0Nz1tl-7jq7IrEL60OvctQ0_PN6mzPsCjSTPj27CVzKymyZN4ojBNDjbnc0e73iio5XNaGaFSRQ0LwmVhxWPWerc9UNI-cYdOrfMRg')"></div>
+<div class="absolute top-4 right-4 text-white">
+<span class="material-symbols-outlined font-variation-[FILL:1]">play_circle</span>
+</div>
+<div class="absolute bottom-4 left-4 font-meta-code text-meta-code text-white bg-black/50 px-2 py-1 backdrop-blur-md">MOTION_STUDY_A</div>
+</div>
+<!-- Small Feature (Football Action) -->
+<div class="md:col-span-4 row-span-1 relative img-mask-reveal group cursor-none overflow-hidden bg-secondary-fixed-dim">
+<div class="absolute inset-0 bg-cover bg-center grayscale transition-all duration-700 group-hover:grayscale-0 group-hover:scale-105" data-alt="A dynamic, high-contrast black and white photograph capturing a peak action moment in football. The composition is asymmetrical, focusing on the tension and geometry of the players' movements against a minimalist, vast stadium background. High grain, editorial sports photography style." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuD_X3qCZl9Ihc1HHhU8pxtRUd6YUxhNym2vFgHc7eKlrfEiADY56HbRAIxfJOTFLfabA57wvvS_qtmyUlhivpM0g-GN8gW9ZLjKZ5vGcl2OEQBluJRj6uY6CjUTG5d0CAD4KvbBicv_U1y6sr4UztNZlV3-_Hu0jIkTfFsJcdAMbDOO_Uhk4v_iFmcrVKInmdUgT5Dxbmu5Ur09B8TuDqYNEiA6qo_IwCZ-LTO6QEa1bujLDWirceQ-gS_hHcX54GzrqfaZNhXQPQ')"></div>
+<div class="absolute bottom-4 left-4 font-meta-code text-meta-code text-white bg-black/50 px-2 py-1 backdrop-blur-md">KINETIC_004</div>
+</div>
+</div>
+</section>
+<!-- Footer Shared Component -->
+<footer class="w-full px-margin-edge py-section-gap flex flex-col gap-gutter bg-surface dark:bg-tertiary border-t border-outline-variant mt-section-gap">
+<div class="font-display-xl text-display-lg-mobile md:text-display-lg text-primary dark:text-on-primary">
+    Srinjoy Roy
+  </div>
+<div class="flex flex-wrap gap-4 font-display-xl text-display-lg-mobile md:text-display-lg uppercase text-on-surface-variant dark:text-on-tertiary-container">
+<a class="cursor-pointer hover:bg-primary hover:text-on-primary transition-all duration-500 px-2 -ml-2" href="#">Contact</a>
+<span class="hidden md:inline text-outline-variant">/</span>
+<a class="cursor-pointer hover:bg-primary hover:text-on-primary transition-all duration-500 px-2" href="#">LinkedIn</a>
+<span class="hidden md:inline text-outline-variant">/</span>
+<a class="cursor-pointer hover:bg-primary hover:text-on-primary transition-all duration-500 px-2" href="#">GitHub</a>
+<span class="hidden md:inline text-outline-variant">/</span>
+<a class="cursor-pointer hover:bg-primary hover:text-on-primary transition-all duration-500 px-2" href="#">Instagram</a>
+</div>
+<div class="font-label-mono text-label-mono text-on-surface-variant mt-8 uppercase tracking-widest">
+    © 2024 SRINJOY ROY — ALL RIGHTS RESERVED
+  </div>
+</footer>
+<script>
+  // Preloader and Intro Animations
+  document.addEventListener("DOMContentLoaded", () => {
+    // Show preloader text with a slight delay
+    setTimeout(() => {
+      const preloaderTitle = document.getElementById('preloader-title');
+      if (preloaderTitle) preloaderTitle.classList.add('show');
+    }, 100);
+  });
+
+  window.addEventListener('load', () => {
+    const preloader = document.getElementById('preloader');
+    
+    // Hold preloader briefly after load for effect
+    setTimeout(() => {
+      // Hide Preloader
+      preloader.classList.add('hide');
+      document.body.classList.remove('no-scroll');
+
+      // Trigger Hero Animations
+      const heroAnimatedEls = document.querySelectorAll('.hero-animated-el, .hero-panel-reveal');
+      heroAnimatedEls.forEach(el => {
+        el.classList.add('hero-reveal');
+      });
+
+    }, 1500); // Wait 1.5s reading time for the preloader text
+  });
+
+  // Simple intersection observer for lazy reveal animations (for elements not in hero)
+  document.addEventListener('DOMContentLoaded', () => {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('revealed');
+          // Add clip-reveal if it's text and NOT part of the hero (which is handled manually)
+          if(!entry.target.closest('section').classList.contains('min-h-screen') || entry.target.closest('section').id !== '') {
+            if(entry.target.tagName.match(/^H[1-6]$/i) || entry.target.tagName === 'P') {
+                entry.target.classList.add('clip-reveal');
+            }
+          }
+        }
+      });
+    }, { threshold: 0.1 });
+
+    document.querySelectorAll('#projects .img-mask-reveal, #projects h2, #projects h3, #projects p.max-w-md, #experience h2, #experience h4, #gallery .img-mask-reveal, #gallery h2').forEach((el) => {
+      observer.observe(el);
+    });
+  });
+</script>
+</body></html>
