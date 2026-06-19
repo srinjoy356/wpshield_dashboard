@@ -3,6 +3,7 @@ import { Paynimo } from '@/lib/billing/paynimo';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { checkRateLimit } from '@/lib/security/rate-limit';
+import { getEffectivePrice } from '@/lib/billing/pricing';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
     // Server loads price — client never sets the amount
     const { data: plan, error: planErr } = await admin
       .from('plans')
-      .select('id, name, price_inr_test, max_sites')
+      .select('id, name, price_inr_test, price_inr_live, price_usd, price_usd_live, currency, max_sites')
       .eq('id', plan_code)
       .single();
 
@@ -41,7 +42,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
     }
 
-    const amount    = plan.price_inr_test; // ₹1 for starter, ₹5 for growth — test pricing, kept intentionally
+    // RG-02: live/test switch lives in one shared place (lib/billing/pricing.ts)
+    // so this is never computed differently than what the billing UI displays.
+    const effectivePrice = getEffectivePrice(plan);
+
+    // This specific checkout flow talks to Paynimo with currency hardcoded to
+    // INR throughout (see consumerData below) — it was never built to handle
+    // a non-INR transaction. Rather than silently sending a USD number through
+    // as if it were rupees (a real, serious bug if a 'global' region plan is
+    // ever marked currency='USD'), refuse the checkout outright until USD
+    // payment processing is actually wired up. The schema supports global/USD
+    // plans today; this route enforcing INR-only is what's actually safe to
+    // ship right now.
+    if (effectivePrice.currency !== 'INR') {
+      return NextResponse.json({
+        error: 'This plan is not yet available for checkout — USD billing is not enabled yet. Please contact support.'
+      }, { status: 400 });
+    }
+
+    const amount    = effectivePrice.amount;
     const txnRefNo  = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 min expiry
 

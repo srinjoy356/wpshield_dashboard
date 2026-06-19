@@ -54,7 +54,7 @@ export async function requireUser(supabase: SupabaseClient) {
   const { data: { user }, error } = await supabase.auth.getUser();
   if (error || !user) {
     return { 
-      allowed: false, 
+      allowed: false as const, 
       response: NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     };
   }
@@ -67,12 +67,12 @@ export async function requireUser(supabase: SupabaseClient) {
 
   if (!profile) {
     return { 
-      allowed: false, 
+      allowed: false as const, 
       response: NextResponse.json({ error: 'Profile not found' }, { status: 404 })
     };
   }
 
-  return { allowed: true, user, profile };
+  return { allowed: true as const, user, profile };
 }
 
 export async function requireAdmin(supabase: SupabaseClient) {
@@ -84,12 +84,12 @@ export async function requireAdmin(supabase: SupabaseClient) {
   // could see the admin UI shell but get 403'd on the API routes behind it.
   if (userCheck.profile.role !== 'admin' && userCheck.profile.role !== 'super_admin') {
     return { 
-      allowed: false, 
+      allowed: false as const, 
       response: NextResponse.json({ error: 'Forbidden: Admin access required' }, { status: 403 })
     };
   }
 
-  return { allowed: true, user: userCheck.user, profile: userCheck.profile };
+  return { allowed: true as const, user: userCheck.user, profile: userCheck.profile };
 }
 
 /** Stricter variant for actions that should be super_admin-only (e.g. managing other admins). */
@@ -99,12 +99,12 @@ export async function requireSuperAdmin(supabase: SupabaseClient) {
 
   if (userCheck.profile.role !== 'super_admin') {
     return {
-      allowed: false,
+      allowed: false as const,
       response: NextResponse.json({ error: 'Forbidden: Super admin access required' }, { status: 403 })
     };
   }
 
-  return { allowed: true, user: userCheck.user, profile: userCheck.profile };
+  return { allowed: true as const, user: userCheck.user, profile: userCheck.profile };
 }
 
 export async function requireCustomerAccess(supabase: SupabaseClient, companyId: string) {
@@ -114,12 +114,12 @@ export async function requireCustomerAccess(supabase: SupabaseClient, companyId:
   const { allowed, response } = await verifyCompanyAccess(supabase, userCheck.user.id, companyId);
   if (!allowed) {
     return { 
-      allowed: false, 
+      allowed: false as const, 
       response: response || NextResponse.json({ error: 'Forbidden: Tenant boundary breach' }, { status: 403 }) 
     };
   }
 
-  return { allowed: true, user: userCheck.user, profile: userCheck.profile };
+  return { allowed: true as const, user: userCheck.user, profile: userCheck.profile };
 }
 
 export function validateJson<T>(data: any, schema: z.ZodSchema<T>): { success: true; data: T } | { success: false; response: NextResponse } {

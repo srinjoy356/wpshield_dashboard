@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { redirect } from "next/navigation";
 import { CheckoutButton } from "./checkout-button";
 import { CheckCircle, Shield, Zap } from "lucide-react";
+import { getEffectivePrice, formatPrice } from "@/lib/billing/pricing";
 
 const PLAN_FEATURES: Record<string, string[]> = {
   starter: [
@@ -72,7 +73,7 @@ export default async function AppBillingPage() {
 
   const { data: plans } = await supabase
     .from("plans")
-    .select("id, name, price_usd, max_sites, plan_family")
+    .select("id, name, price_usd, price_usd_live, price_inr_test, price_inr_live, currency, max_sites, plan_family")
     .not("id", "eq", "trial")
     .order("price_usd", { ascending: true });
 
@@ -160,7 +161,14 @@ export default async function AppBillingPage() {
                     <p className="text-xs text-[var(--muted)]">{p.max_sites} WordPress site{p.max_sites > 1 ? 's' : ''}</p>
                   </div>
                   <div className="text-right">
-                    <div className="text-3xl font-extrabold">${p.price_usd}<span className="text-sm text-[var(--muted)] font-normal">/mo</span></div>
+                    {(() => {
+                      const price = getEffectivePrice(p);
+                      return (
+                        <div className="text-3xl font-extrabold">
+                          {formatPrice(price)}<span className="text-sm text-[var(--muted)] font-normal">/mo</span>
+                        </div>
+                      );
+                    })()}
                     <p className="text-xs text-[var(--muted)]">per month</p>
                   </div>
                 </div>

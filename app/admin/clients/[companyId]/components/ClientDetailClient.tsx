@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { StatusDot } from "@/components/dashboard/StatusDot";
 import { TimeCell } from "@/components/dashboard/TimeCell";
-import { ExternalLink, Mail, Calendar, Activity, ShieldAlert, LogIn, FileCode, Package, LayoutDashboard, Edit, KeyRound, UserX, Trash2, UserCheck, ArrowLeft, Globe, CheckCircle, XCircle } from "lucide-react";
+import { ExternalLink, Mail, Calendar, Activity, ShieldAlert, LogIn, FileCode, Package, LayoutDashboard, Edit, KeyRound, UserX, Trash2, UserCheck, ArrowLeft, Globe, CheckCircle, XCircle, Eye, Send, ShieldQuestion, AlertTriangle } from "lucide-react";
 import { Company, AttackEvent, LoginEvent, FileEvent, Alert, InventorySnapshotView } from "@/types";
+import { LicenseRevealModal } from "./LicenseRevealModal";
 
 // Shared Components
 import { AttacksTable } from "@/components/dashboard/AttacksTable";
@@ -38,6 +39,17 @@ interface SiteRow {
   license_id: string | null;
 }
 
+interface LicenseRow {
+  id: string;
+  status: string;
+  max_sites: number;
+  delivery_status: "pending" | "sent" | "failed" | "not_applicable";
+  delivery_error: string | null;
+  last_delivery_attempt_at: string | null;
+  created_at: string;
+  hasRecoverableKey: boolean;
+}
+
 interface ClientDetailClientProps {
   company: Company & { stats: any };
   attacks: AttackEvent[];
@@ -48,6 +60,7 @@ interface ClientDetailClientProps {
   timeData: any[];
   severityData: any[];
   sites?: SiteRow[];
+  licenses?: LicenseRow[];
   defaultTab?: string;
 }
 
@@ -61,6 +74,7 @@ export function ClientDetailClient({
   timeData,
   severityData,
   sites = [],
+  licenses = [],
   defaultTab = "overview",
 }: ClientDetailClientProps) {
   const [activeTab, setActiveTab] = useState(defaultTab);
@@ -71,6 +85,8 @@ export function ClientDetailClient({
   const [showReset, setShowReset] = useState(false);
   const [showSuspend, setShowSuspend] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  // License reveal/resend modal — tracks which license + which action triggered it
+  const [licenseModal, setLicenseModal] = useState<{ licenseId: string; action: "reveal" | "resend" } | null>(null);
 
   const totalSeverity = severityData.reduce((a, b) => a + b.value, 0);
 
@@ -217,6 +233,9 @@ export function ClientDetailClient({
           <TabsTrigger value="sites" className="gap-2 rounded-lg data-[state=active]:bg-[var(--surface-subtle)]">
             <Globe className="h-4 w-4" /> Sites ({sites.length})
           </TabsTrigger>
+          <TabsTrigger value="license" className="gap-2 rounded-lg data-[state=active]:bg-[var(--surface-subtle)]">
+            <KeyRound className="h-4 w-4" /> License ({licenses.length})
+          </TabsTrigger>
           <TabsTrigger value="alerts" className="gap-2 rounded-lg data-[state=active]:bg-[var(--surface-subtle)]">
             <Activity className="h-4 w-4" /> Alerts ({alerts.length})
           </TabsTrigger>
@@ -319,6 +338,87 @@ export function ClientDetailClient({
             </div>
           )}
         </TabsContent>
+        <TabsContent value="license" className="outline-none">
+          {licenses.length === 0 ? (
+            <div className="text-sm text-[var(--muted)] p-6 text-center">No license issued for this client yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {licenses.map(license => (
+                <div key={license.id} className="rounded-xl border border-[var(--border)] bg-surface p-4 space-y-3">
+                  <div className="flex items-start justify-between flex-wrap gap-3">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="text-xs font-mono bg-[var(--surface-subtle)] px-1.5 py-0.5 rounded text-[var(--muted)]">
+                          {license.id}
+                        </code>
+                        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                          license.status === 'active'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-gray-100 text-gray-600 border border-gray-200'
+                        }`}>
+                          {license.status}
+                        </span>
+                        {license.delivery_status === 'sent' && (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 inline-flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3" /> Delivered
+                          </span>
+                        )}
+                        {license.delivery_status === 'failed' && (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-600 border border-red-200 inline-flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Delivery failed
+                          </span>
+                        )}
+                        {license.delivery_status === 'pending' && (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                            Delivery pending
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-[var(--muted)] space-x-3">
+                        <span>Max sites: {license.max_sites}</span>
+                        <span>Issued: {new Date(license.created_at).toLocaleDateString()}</span>
+                        {license.last_delivery_attempt_at && (
+                          <span>Last delivery attempt: {new Date(license.last_delivery_attempt_at).toLocaleString()}</span>
+                        )}
+                      </div>
+                      {license.delivery_status === 'failed' && license.delivery_error && (
+                        <p className="text-xs text-red-600 italic">{license.delivery_error}</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {license.hasRecoverableKey ? (
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => setLicenseModal({ licenseId: license.id, action: "reveal" })}
+                          >
+                            <Eye className="h-3.5 w-3.5" /> Reveal Key
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5"
+                            onClick={() => setLicenseModal({ licenseId: license.id, action: "resend" })}
+                          >
+                            <Send className="h-3.5 w-3.5" /> Resend Email
+                          </Button>
+                        </>
+                      ) : (
+                        <span className="text-xs text-[var(--muted)] italic flex items-center gap-1.5">
+                          <ShieldQuestion className="h-3.5 w-3.5" />
+                          No recoverable key on file (issued before key escrow)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
         <TabsContent value="alerts" className="outline-none">
           <AlertsList initialAlerts={alerts} isAdmin={true} />
         </TabsContent>
@@ -329,6 +429,14 @@ export function ClientDetailClient({
       <ResetPasswordModal company={company} open={showReset} onOpenChange={setShowReset} />
       <SuspendConfirmModal company={company} open={showSuspend} onOpenChange={setShowSuspend} />
       <DeleteClientModal company={company} open={showDelete} onOpenChange={setShowDelete} />
+      {licenseModal && (
+        <LicenseRevealModal
+          licenseId={licenseModal.licenseId}
+          action={licenseModal.action}
+          open={!!licenseModal}
+          onOpenChange={(open) => { if (!open) setLicenseModal(null); }}
+        />
+      )}
     </div>
   );
 }

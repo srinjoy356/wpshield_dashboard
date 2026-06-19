@@ -33,21 +33,40 @@ export default async function AdminBillingPage() {
 
   // Fetch plans
   const { data: plans } = await adminClient.from("plans").select("id, name");
-  
+
   // Fetch customers and profiles
   const { data: customers } = await adminClient.from("customers").select("id, owner_user_id");
   const { data: profiles } = await adminClient.from("user_profiles").select("id, display_name");
+
+  // RG-06: real paid amounts via invoices, not a hardcoded fallback. Invoices
+  // link to customer_id rather than subscription_id directly, so for each
+  // subscription we take that customer's most recent invoice — a reasonable
+  // "what did this customer actually last pay" view for an admin overview,
+  // and far more accurate than a single number applied to every row.
+  const { data: invoices } = await adminClient
+    .from("invoices")
+    .select("customer_id, amount, currency, status, invoice_number, created_at")
+    .order("created_at", { ascending: false });
 
   // Map data together
   const mappedSubscriptions = subscriptions?.map((sub: any) => {
     const customer = customers?.find((c) => c.id === sub.customer_id);
     const profile = profiles?.find((p) => p.id === customer?.owner_user_id);
     const plan = plans?.find((p) => p.id === sub.plan_id);
+    // invoices is already sorted newest-first, so the first match for this
+    // customer is their most recent invoice.
+    const latestInvoice = invoices?.find((inv) => inv.customer_id === sub.customer_id);
+
     return {
       ...sub,
       customerName: profile?.display_name || "Unknown Customer",
       planName: plan?.name || "Premium Plan",
-      planPrice: 49, // Hardcoded fallback since price column doesn't exist
+      // amount is stored in minor units (paise) per invoices.amount's existing
+      // convention — divide by 100 for display, same as the rest of the app.
+      paidAmount: latestInvoice ? latestInvoice.amount / 100 : null,
+      paidCurrency: latestInvoice?.currency || null,
+      invoiceNumber: latestInvoice?.invoice_number || null,
+      invoiceStatus: latestInvoice?.status || null,
     };
   });
 
@@ -61,6 +80,8 @@ export default async function AdminBillingPage() {
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Plan</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Paid</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Renewal</th>
             </tr>
@@ -69,12 +90,20 @@ export default async function AdminBillingPage() {
             {mappedSubscriptions?.map((sub: any) => (
               <tr key={sub.id}>
                 <td className="px-6 py-4 whitespace-nowrap">{sub.customerName}</td>
+                <td className="px-6 py-4 whitespace-nowrap">{sub.planName}</td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  {sub.planName} (${sub.planPrice}/mo)
+                  {sub.paidAmount != null
+                    ? `${sub.paidCurrency === 'USD' ? '$' : '₹'}${sub.paidAmount.toLocaleString()}`
+                    : <span className="text-gray-400 italic">No invoice on record</span>}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-xs font-mono text-gray-500">
+                  {sub.invoiceNumber || "—"}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                    sub.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    sub.status === 'active' ? 'bg-green-100 text-green-800' :
+                    sub.status === 'past_due' ? 'bg-amber-100 text-amber-800' :
+                    'bg-red-100 text-red-800'
                   }`}>
                     {sub.status}
                   </span>
