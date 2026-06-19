@@ -90,7 +90,8 @@ export default async function InventoryPage({ searchParams }: Props) {
         <SiteSwitcher
           sites={targets.map((t) => ({ key: siteKeyFor(t.site_id), label: t.url }))}
           value={siteKeyFor(selectedTarget.site_id)}
-          hrefFor={(key) => `/app/inventory?site=${key}`}
+          basePath="/app/inventory"
+          searchParam="site"
         />
       )}
 

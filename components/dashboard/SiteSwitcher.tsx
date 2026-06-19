@@ -22,10 +22,17 @@ interface SiteSwitcherProps {
   onChange?: (key: string) => void;
   /**
    * Used by pages that select the site via a URL search param instead of
-   * client state (e.g. Inventory, which is a server component). When set,
-   * selecting an option navigates to hrefFor(key) instead of calling onChange.
+   * client state (e.g. Inventory, which is a server component). The URL is
+   * built internally as `${basePath}?${searchParam}=${key}` — deliberately
+   * plain strings, not a function. Next.js Server Components cannot pass
+   * functions as props to Client Components (only serializable data crosses
+   * that boundary), so an earlier version of this component that took a
+   * `hrefFor: (key) => string` callback threw at runtime the moment a server
+   * component tried to use it. Strings serialize fine; functions don't.
    */
-  hrefFor?: (key: string) => string;
+  basePath?: string;
+  /** Search param name used with basePath. Defaults to 'site'. */
+  searchParam?: string;
   className?: string;
 }
 
@@ -42,14 +49,14 @@ interface SiteSwitcherProps {
  * can't be restyled this way (its blue highlight color is browser chrome,
  * not something the page's CSS controls).
  */
-export function SiteSwitcher({ sites, value, onChange, hrefFor, className }: SiteSwitcherProps) {
+export function SiteSwitcher({ sites, value, onChange, basePath, searchParam = "site", className }: SiteSwitcherProps) {
   const router = useRouter();
 
   if (sites.length <= 1) return null;
 
   const handleChange = (key: string) => {
-    if (hrefFor) {
-      router.push(hrefFor(key));
+    if (basePath) {
+      router.push(`${basePath}?${searchParam}=${encodeURIComponent(key)}`);
     } else if (onChange) {
       onChange(key);
     }
