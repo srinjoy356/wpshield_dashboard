@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Button } from "@/components/ui/button";
+import { SiteSwitcher } from "@/components/dashboard/SiteSwitcher";
 import { Shield, ChevronDown, ChevronUp, Loader2, CheckCircle2, XCircle, HelpCircle, Lock, ShieldAlert, Puzzle, Activity, HeartPulse, FileWarning } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
@@ -373,25 +374,22 @@ export function HardeningContent({ companyId, sites }: HardeningContentProps) {
       />
 
       {siteBundles.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {siteBundles.map((bundle, idx) => (
-            <button
-              key={bundle.site_id ?? `legacy-${idx}`}
-              onClick={() => {
-                setSelectedSiteIndex(idx);
-                setExpandedKey(null);
-              }}
-              className={cn(
-                "rounded-full px-4 py-1.5 text-xs font-semibold border transition-colors",
-                idx === selectedSiteIndex
-                  ? "bg-[#B8B0AA] text-neutral-900 border-neutral-950"
-                  : "bg-surface text-[var(--muted)] border-[var(--border)] hover:bg-[var(--surface-subtle)]"
-              )}
-            >
-              {bundle.site_url}
-            </button>
-          ))}
-        </div>
+        <SiteSwitcher
+          sites={siteBundles.map((bundle, idx) => ({
+            key: bundle.site_id ?? `legacy-${idx}`,
+            label: bundle.site_url,
+          }))}
+          value={siteBundles[selectedSiteIndex]?.site_id ?? `legacy-${selectedSiteIndex}`}
+          onChange={(key) => {
+            const idx = siteBundles.findIndex(
+              (b, i) => (b.site_id ?? `legacy-${i}`) === key
+            );
+            if (idx !== -1) {
+              setSelectedSiteIndex(idx);
+              setExpandedKey(null);
+            }
+          }}
+        />
       )}
 
       {/* Hero Scoreboard card with horizontal split inside */}

@@ -12,17 +12,16 @@ import {
   Package,
   Bell,
   Settings,
-  ChevronLeft,
-  ChevronRight,
   Search,
   LogOut,
   LucideIcon,
   Loader2,
-  Check,
   Shield,
   ShieldAlert,
   FileDown,
   CreditCard,
+  Sun,
+  Moon,
 } from "lucide-react";
 import { useState, useTransition, useMemo, useEffect } from "react";
 import { Input } from "@/components/ui/input";
@@ -33,6 +32,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getOpenAlertCount } from "@/lib/queries/alerts";
 import { Activity } from "lucide-react";
 import { logout } from "@/app/(auth)/login/actions";
+import { useTheme } from "@/lib/hooks/use-theme";
 
 interface NavItem {
   label: string;
@@ -55,6 +55,10 @@ const clientNav: NavItem[] = [
   { label: "Settings", href: "/app/settings", icon: Settings },
 ];
 
+// Width of the icon-only rail vs the fully expanded sidebar shown on hover.
+const RAIL_WIDTH = "w-16";
+const EXPANDED_WIDTH = "w-60";
+
 export default function ClientLayout({
   children,
 }: {
@@ -64,11 +68,17 @@ export default function ClientLayout({
   const router = useRouter();
   const { toast } = useToast();
   const { user, profile, loading } = useUser();
-  const [collapsed, setCollapsed] = useState(false);
+  // Hover-driven expand/collapse, replacing the old click-to-toggle +
+  // localStorage-persisted state. Matches the DPDP tool's sidebar, which
+  // expands on hover rather than requiring an explicit pin/unpin click.
+  const [hovered, setHovered] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openAlertsCount, setOpenAlertsCount] = useState(0);
   const supabase = useMemo(() => createClient(), []);
   const [searchQuery, setSearchQuery] = useState("");
+  const { theme, toggleTheme, mounted } = useTheme();
+
+  const expanded = hovered || mobileOpen;
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && searchQuery.trim()) {
@@ -79,18 +89,6 @@ export default function ClientLayout({
       });
     }
   };
-
-  // Persist sidebar state
-  useEffect(() => {
-    const saved = localStorage.getItem('client_sidebar_collapsed');
-    if (saved !== null) {
-      setCollapsed(saved === 'true');
-    }
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('client_sidebar_collapsed', String(collapsed));
-  }, [collapsed]);
 
   useEffect(() => {
     async function fetchCount() {
@@ -167,17 +165,23 @@ export default function ClientLayout({
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar — icon-only rail by default, expands on hover. Reserves
+          margin for the rail width only, and overlays on top of content
+          (with a shadow) while expanded, so hovering never reflows the
+          page underneath it. */}
       <aside
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-[var(--border)] bg-surface transition-all duration-200 md:relative",
-          collapsed ? "w-16" : "w-60",
+          "fixed inset-y-0 left-0 z-50 flex flex-col border-r border-[var(--border-1)] bg-[var(--sidebar-bg)]",
+          "transition-all duration-300 ease-in-out md:relative",
+          expanded ? cn(EXPANDED_WIDTH, "shadow-lg") : RAIL_WIDTH,
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
         {/* Logo */}
-        <div className="flex h-16 items-center justify-center border-b border-[var(--border)] px-4">
-          {collapsed ? (
+        <div className="flex h-16 items-center justify-center border-b border-[var(--border-1)] px-4 shrink-0">
+          {!expanded ? (
             <Image
               src="/logos/cn-icon.png"
               alt="Cybernara"
@@ -185,18 +189,23 @@ export default function ClientLayout({
               height={28}
             />
           ) : (
-            <Image
-              src="/logos/cybernara-black.png"
-              alt="Cybernara"
-              width={140}
-              height={32}
-              className="h-8 w-auto"
-            />
+            <div className="flex w-full flex-col">
+              <Image
+                src="/logos/cybernara-black.png"
+                alt="Cybernara"
+                width={140}
+                height={32}
+                className="h-7 w-auto dark:invert"
+              />
+              <span className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.1em] text-[var(--sidebar-text)]">
+                WPShield
+              </span>
+            </div>
           )}
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto p-3">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden p-3">
           <ul className="space-y-1">
             {clientNav.map((item) => (
               <li key={item.href}>
@@ -205,20 +214,20 @@ export default function ClientLayout({
                   prefetch={true}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 rounded px-3 py-2.5 text-sm transition-colors",
+                    "nav-item flex items-center gap-3 rounded-[var(--radius)] px-3 py-2.5 text-sm transition-colors",
                     isActive(item.href)
-                      ? "border-l-2 border-[var(--foreground)] bg-[var(--surface-subtle)] text-[var(--foreground)] font-medium"
-                      : "text-[var(--muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--foreground)]"
+                      ? "active bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active-text)] border border-[var(--border-1)] font-semibold"
+                      : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-active-text)]"
                   )}
                 >
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <item.icon className="h-[18px] w-[18px] shrink-0" strokeWidth={1.5} />
                     {item.label === "Hardening" && hardeningScore !== null && hardeningScore < 60 && (
                       <span className="absolute -right-1 -top-1 flex h-2 w-2 rounded-full bg-red-500 animate-pulse" />
                     )}
                   </div>
-                  {!collapsed && (
-                    <div className="flex flex-1 items-center justify-between">
+                  {expanded && (
+                    <div className="flex flex-1 items-center justify-between overflow-hidden whitespace-nowrap">
                       <span>{item.label}</span>
                       {item.label === "Hardening" && hardeningScore !== null && hardeningScore < 60 && (
                         <span className="rounded-full bg-red-50 text-red-600 border border-red-100 px-1.5 py-0.5 text-[9px] font-bold">
@@ -239,51 +248,53 @@ export default function ClientLayout({
         </nav>
 
         {/* Bottom section */}
-        <div className="border-t border-[var(--border)] p-3">
-          {!collapsed && (
-            <div className="mb-3 flex items-center gap-3 px-2">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback className="bg-[var(--surface-subtle)] text-xs font-medium">
+        <div className="border-t border-[var(--border-1)] p-3 shrink-0">
+          {expanded && (
+            <div className="mb-3 flex items-center gap-3 px-2 overflow-hidden">
+              <Avatar className="h-8 w-8 shrink-0">
+                <AvatarFallback className="bg-[var(--bg-3)] text-xs font-medium">
                   {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : getInitials(profile?.display_name, user?.email)}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 truncate">
-                <p className="truncate text-sm font-medium text-[var(--foreground)]">
+                <p className="truncate text-sm font-medium text-[var(--sidebar-active-text)]">
                   {profile?.display_name || user?.email?.split("@")[0] || "Client"}
                 </p>
                 <div className="flex flex-col">
-                  <p className="text-xs text-[var(--muted)] capitalize">{profile?.role || "Client"}</p>
+                  <p className="text-xs text-[var(--sidebar-text)] capitalize">{profile?.role || "Client"}</p>
                   {profile?.company_id && (
-                    <p className="text-[10px] text-[var(--muted-foreground)] font-mono truncate">{profile.company_id}</p>
+                    <p className="text-[10px] text-[var(--text-4)] font-mono truncate">{profile.company_id}</p>
                   )}
                 </div>
               </div>
             </div>
           )}
+
+          {/* Theme toggle */}
+          {mounted && (
+            <button
+              onClick={toggleTheme}
+              className="flex w-full items-center gap-2 rounded-[var(--radius)] px-3 py-2 text-sm transition-colors text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-active-text)]"
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4 shrink-0" strokeWidth={1.5} /> : <Moon className="h-4 w-4 shrink-0" strokeWidth={1.5} />}
+              {expanded && <span className="whitespace-nowrap">{theme === "dark" ? "Light mode" : "Dark mode"}</span>}
+            </button>
+          )}
+
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-2 rounded px-3 py-2 text-sm transition-all duration-200 text-[var(--muted)] hover:bg-[var(--surface-subtle)] hover:text-[var(--foreground)]"
+            className="flex w-full items-center gap-2 rounded-[var(--radius)] px-3 py-2 text-sm transition-colors text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-bg)] hover:text-[var(--sidebar-active-text)]"
           >
-            <LogOut className="h-4 w-4" strokeWidth={1.5} />
-            {!collapsed && (
-              <span>Logout</span>
-            )}
-          </button>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="mt-2 hidden w-full items-center justify-center rounded py-2 text-[var(--muted)] hover:bg-[var(--surface-subtle)] md:flex"
-          >
-            {collapsed ? (
-              <ChevronRight className="h-4 w-4" strokeWidth={1.5} />
-            ) : (
-              <ChevronLeft className="h-4 w-4" strokeWidth={1.5} />
-            )}
+            <LogOut className="h-4 w-4 shrink-0" strokeWidth={1.5} />
+            {expanded && <span className="whitespace-nowrap">Logout</span>}
           </button>
         </div>
       </aside>
 
-      {/* Main area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* Main area — margin reserved for the rail width only, since the
+          sidebar overlays on top of content while expanded rather than
+          pushing it. */}
+      <div className="flex flex-1 flex-col overflow-hidden md:ml-16">
         {/* Top header */}
         <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b border-[var(--border)] bg-surface px-6">
           {/* Mobile hamburger */}
@@ -324,7 +335,7 @@ export default function ClientLayout({
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            <button className="group relative rounded-lg p-2 text-[var(--muted)] hover:bg-[var(--surface-subtle)]" onClick={() => router.push('/app/alerts')}>
+            <button className="group relative rounded-[var(--radius)] p-2 text-[var(--muted)] hover:bg-[var(--surface-subtle)]" onClick={() => router.push('/app/alerts')}>
               <Bell className="h-6 w-6 transition-colors group-hover:text-[var(--foreground)]" strokeWidth={1.5} />
               {openAlertsCount > 0 && (
                 <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-[20px] items-center justify-center rounded-full border-2 border-surface bg-[var(--critical)] px-1 text-[9px] font-bold text-white shadow-sm">

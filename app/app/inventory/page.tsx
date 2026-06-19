@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/dashboard/EmptyState";
 import { VulnerabilitiesList } from "@/components/dashboard/VulnerabilitiesList";
 import { Package, ShieldAlert } from "lucide-react";
 import { redirect } from "next/navigation";
-import Link from "next/link";
+import { SiteSwitcher } from "@/components/dashboard/SiteSwitcher";
 
 interface Props {
   searchParams: Promise<{ site?: string }>;
@@ -87,25 +87,11 @@ export default async function InventoryPage({ searchParams }: Props) {
       <PageHeader title="Site Inventory" subtitle={`${selectedTarget.url} · Asset Management`} />
 
       {targets.length > 1 && (
-        <div className="flex flex-wrap gap-2">
-          {targets.map((t) => {
-            const key = siteKeyFor(t.site_id);
-            const isActive = key === siteKeyFor(selectedTarget.site_id);
-            return (
-              <Link
-                key={key}
-                href={`/app/inventory?site=${key}`}
-                className={
-                  isActive
-                    ? "rounded-full px-4 py-1.5 text-xs font-semibold border bg-[#B8B0AA] text-neutral-900 border-neutral-950"
-                    : "rounded-full px-4 py-1.5 text-xs font-semibold border bg-surface text-[var(--muted)] border-[var(--border)] hover:bg-[var(--surface-subtle)]"
-                }
-              >
-                {t.url}
-              </Link>
-            );
-          })}
-        </div>
+        <SiteSwitcher
+          sites={targets.map((t) => ({ key: siteKeyFor(t.site_id), label: t.url }))}
+          value={siteKeyFor(selectedTarget.site_id)}
+          hrefFor={(key) => `/app/inventory?site=${key}`}
+        />
       )}
 
       {openVulns && openVulns.length > 0 && (

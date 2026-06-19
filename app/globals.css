@@ -2,33 +2,129 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════════════════════════════
+   DESIGN SYSTEM — ported from the DPDP Shield tool's index.css so both
+   Cybernara products share one visual language. Monochrome base (black/
+   white/gray) everywhere, EXCEPT severity-coded elements (alert badges,
+   uptime status, hardening risk levels) which intentionally keep their
+   red/amber/green colors — those carry real meaning in a security
+   dashboard that a flat monochrome badge would lose at a glance.
+   ═══════════════════════════════════════════════════════════════════════ */
+
 @layer base {
   :root {
-    --background: #FAFAF9;
-    --surface: #FFFFFF;
-    --surface-subtle: #F5F5F4;
-    --border: #E7E5E4;
-    --foreground: #1C1917;
-    --muted: #78716C;
-    --muted-foreground: #A8A29E;
-    --popover: #FFFFFF;
-    --popover-foreground: #1C1917;
-    
-    --primary: #1C1917;
-    --primary-foreground: #FAFAF9;
-    --secondary: #F5F5F4;
-    --secondary-foreground: #1C1917;
-    
-    --success: #15803D;
-    --warning: #A16207;
-    --alert: #C2410C;
+    /* ── Raw monochrome tokens, named exactly as in the DPDP tool's CSS ── */
+    --bg:            #ffffff;
+    --bg-2:          #fafafa;
+    --bg-3:          #f0f0f0;
+    --border-1:      rgba(0, 0, 0, 0.08);
+    --border-2:      rgba(0, 0, 0, 0.15);
+    --text-1:        #000000;
+    --text-2:        #1a1a1a;
+    --text-3:        #4a4a4a;
+    --text-4:        #8a8a8a;
+    --primary-mono:  #000000;
+    --primary-light: #333333;
+    --primary-bg:    rgba(0, 0, 0, 0.05);
+    --accent-dim:    rgba(0, 0, 0, 0.05);
+    --primary-dim:   rgba(0, 0, 0, 0.04);
+    --purple:        #8b5cf6;
+
+    --shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.05);
+    --shadow:    0 12px 32px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.12);
+
+    --radius:    12px;
+    --radius-lg: 16px;
+    --radius-xl: 24px;
+
+    --sidebar-bg:          #ffffff;
+    --sidebar-text:        #4a4a4a;
+    --sidebar-active-bg:   rgba(0, 0, 0, 0.06);
+    --sidebar-active-text: #000000;
+    --sidebar-hover-bg:    rgba(0, 0, 0, 0.03);
+
+    --glass-bg:     rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(0, 0, 0, 0.1);
+    --grid-color:   rgba(0, 0, 0, 0.03);
+
+    /* ── WPShield's existing token names, repointed at the values above.
+       Every component already styled via var(--background), var(--surface),
+       var(--foreground) etc. picks up the new monochrome look automatically —
+       nothing else needs to change just to get the base theme applied. ── */
+    --background:        var(--bg-2);
+    --surface:            var(--bg);
+    --surface-subtle:     var(--bg-3);
+    --border:             var(--border-1);
+    --foreground:         var(--text-1);
+    --muted:              var(--text-3);
+    --muted-foreground:   var(--text-4);
+    --popover:            var(--bg);
+    --popover-foreground: var(--text-1);
+
+    --primary:            var(--primary-mono);
+    --primary-foreground: #ffffff;
+    --secondary:          var(--bg-3);
+    --secondary-foreground: var(--text-1);
+
+    /* Severity colors — intentionally NOT touched. These stay exactly as
+       they were so alert/uptime/hardening badges keep meaningful color. */
+    --success:  #15803D;
+    --warning:  #A16207;
+    --alert:    #C2410C;
     --critical: #B91C1C;
-    --info: #1D4ED8;
-    
-    --brand: #0D9488;
-    --brand-soft: #CCFBF1;
-    
-    --radius: 0.5rem;
+    --info:     #1D4ED8;
+
+    /* Brand teal is retired from UI chrome to match the monochrome system —
+       the literal logo image keeps its own color regardless, since it's a
+       static asset, not CSS-driven. */
+    --brand:      #000000;
+    --brand-soft: rgba(0, 0, 0, 0.05);
+  }
+
+  .dark {
+    --bg:            #000000;
+    --bg-2:          #0a0a0a;
+    --bg-3:          #121212;
+    --border-1:      rgba(255, 255, 255, 0.08);
+    --border-2:      rgba(255, 255, 255, 0.15);
+    --text-1:        #ffffff;
+    --text-2:        #e2e8f0;
+    --text-3:        #94a3b8;
+    --text-4:        #64748b;
+    --primary-mono:  #ffffff;
+    --primary-light: #f0f0f0;
+    --primary-bg:    rgba(255, 255, 255, 0.1);
+    --accent-dim:    rgba(255, 255, 255, 0.1);
+    --primary-dim:   rgba(255, 255, 255, 0.08);
+
+    --sidebar-bg:          rgba(0, 0, 0, 0.9);
+    --sidebar-text:        #94a3b8;
+    --sidebar-active-bg:   rgba(255, 255, 255, 0.1);
+    --sidebar-active-text: #ffffff;
+    --sidebar-hover-bg:    rgba(255, 255, 255, 0.05);
+
+    --glass-bg:     rgba(10, 10, 10, 0.8);
+    --glass-border: rgba(255, 255, 255, 0.15);
+    --grid-color:   rgba(255, 255, 255, 0.03);
+
+    --background:        var(--bg-2);
+    --surface:            var(--bg);
+    --surface-subtle:     var(--bg-3);
+    --border:             var(--border-1);
+    --foreground:         var(--text-1);
+    --muted:              var(--text-3);
+    --muted-foreground:   var(--text-4);
+    --popover:            var(--bg);
+    --popover-foreground: var(--text-1);
+
+    --primary:            var(--primary-mono);
+    --primary-foreground: #000000;
+    --secondary:          var(--bg-3);
+    --secondary-foreground: var(--text-1);
+
+    --brand:      #ffffff;
+    --brand-soft: rgba(255, 255, 255, 0.1);
   }
 }
 
@@ -39,6 +135,18 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* ── Ambient body background — subtle dot grid + radial fade, matching the
+   DPDP tool's canvas treatment. Sits beneath everything; content panels using
+   .bg-premium-surface / .bg-dot-grid below set their own background-color
+   and simply paint over it where used, so there's no visual conflict. ── */
+body {
+  background-image:
+    radial-gradient(circle at 50% 0%, var(--primary-dim) 0%, transparent 50%),
+    linear-gradient(var(--grid-color) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
 }
 
 /* Premium surface — used on hardening, firewall, settings content panels */
@@ -57,29 +165,8 @@
   background-size: 20px 20px;
 }
 
-
 /* ═══════════════════════════════════════════════
-   PREMIUM SURFACE UTILITIES
-   ═══════════════════════════════════════════════ */
-
-/* Warm off-white with subtle grid — used on content panels */
-.bg-premium-surface {
-  background-color: #F7F6F5;
-  background-image:
-    linear-gradient(rgba(28, 25, 23, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(28, 25, 23, 0.025) 1px, transparent 1px);
-  background-size: 32px 32px;
-}
-
-/* Dot grid for secondary panels */
-.bg-dot-grid {
-  background-color: var(--surface);
-  background-image: radial-gradient(circle, rgba(28, 25, 23, 0.07) 1px, transparent 1px);
-  background-size: 20px 20px;
-}
-
-/* ═══════════════════════════════════════════════
-   PREMIUM CARD ELEVATION
+   PREMIUM CARD ELEVATION (existing — unchanged)
    ═══════════════════════════════════════════════ */
 
 .card-premium {
@@ -103,10 +190,240 @@
 }
 
 /* ═══════════════════════════════════════════════
+   GLASS CARD — DPDP-style, for new surfaces
+   ═══════════════════════════════════════════════ */
+
+.card {
+  background: var(--glass-bg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--glass-border);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.card:hover {
+  border-color: var(--border-2);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+}
+.card-header {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.card-header h3 {
+  font-family: var(--font-inter), sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-1);
+}
+.card-body { padding: 22px; }
+
+/* ═══════════════════════════════════════════════
+   STAT CARDS
+   ═══════════════════════════════════════════════ */
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin-bottom: 26px;
+}
+.stat-card {
+  background: var(--glass-bg);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--glass-border);
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.stat-card:hover {
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
+  border-color: var(--border-2);
+}
+.stat-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  font-size: 20px;
+  border: 1px solid var(--border-1);
+}
+.stat-label {
+  font-family: var(--font-inter), -apple-system, monospace;
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.stat-value {
+  font-family: var(--font-inter), sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--text-1);
+  margin-top: 4px;
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════════
+   BADGES — monochrome by default; success/warning/
+   danger badges keep semantic color intentionally.
+   ═══════════════════════════════════════════════ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-family: var(--font-inter), -apple-system, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.badge-gray { background: var(--bg-3); color: var(--text-3); border: 1px solid var(--border-1); }
+.badge-mono { background: var(--primary-mono); color: var(--bg); border: 1px solid var(--border-2); }
+.badge-success  { background: color-mix(in srgb, var(--success) 8%, transparent);  color: var(--success);  border: 1px solid var(--success); }
+.badge-warning  { background: color-mix(in srgb, var(--warning) 8%, transparent);  color: var(--warning);  border: 1px solid var(--warning); }
+.badge-critical { background: color-mix(in srgb, var(--critical) 8%, transparent); color: var(--critical); border: 1px solid var(--critical); }
+.badge-info     { background: color-mix(in srgb, var(--info) 8%, transparent);     color: var(--info);     border: 1px solid var(--info); }
+
+/* ═══════════════════════════════════════════════
+   BUTTONS
+   ═══════════════════════════════════════════════ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 18px;
+  border-radius: var(--radius);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+  text-decoration: none;
+  white-space: nowrap;
+  font-family: var(--font-inter), sans-serif;
+}
+.btn-primary {
+  background: var(--primary-mono);
+  color: var(--bg);
+  font-weight: 700;
+  border: 1px solid var(--primary-light);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-light);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+.btn-secondary {
+  background: var(--bg-3);
+  color: var(--text-2);
+  border: 1px solid var(--border-1);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-2);
+  border-color: var(--border-2);
+  color: var(--text-1);
+}
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--border-2);
+  color: var(--text-3);
+}
+.btn-outline:hover {
+  background: var(--primary-mono);
+  border-color: var(--primary-mono);
+  color: var(--bg);
+}
+
+/* ═══════════════════════════════════════════════
+   FORMS
+   ═══════════════════════════════════════════════ */
+
+.form-group { margin-bottom: 18px; }
+.form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  margin-bottom: 7px;
+  font-family: var(--font-inter), -apple-system, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.form-control {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1.5px solid var(--border-1);
+  border-radius: var(--radius);
+  font-size: 15px;
+  color: var(--text-1);
+  background: var(--bg-2);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-family: var(--font-inter), inherit;
+}
+.form-control:focus {
+  outline: none;
+  border-color: var(--primary-mono);
+  box-shadow: 0 0 0 4px var(--primary-bg);
+  background: var(--bg);
+}
+
+/* ═══════════════════════════════════════════════
+   PAGE HEADER
+   ═══════════════════════════════════════════════ */
+
+.page-header { margin-bottom: 28px; }
+.page-header h1 {
+  font-family: var(--font-inter), sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-1);
+  letter-spacing: -0.03em;
+}
+.page-header p {
+  font-size: 14px;
+  color: var(--text-3);
+  margin-top: 5px;
+}
+
+/* ═══════════════════════════════════════════════
+   STATUS DOT
+   ═══════════════════════════════════════════════ */
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+.status-dot.live { background: var(--primary-mono); }
+.status-dot.success { background: var(--success); }
+.status-dot.warning { background: var(--warning); }
+.status-dot.critical { background: var(--critical); }
+
+/* ═══════════════════════════════════════════════
    SIDEBAR REFINEMENT
    ═══════════════════════════════════════════════ */
 
-/* Active nav item — left border accent */
+/* Active nav item — left border accent (kept from before, value unchanged
+   in spirit, now monochrome) */
 .nav-active {
   border-left: 2px solid var(--foreground);
   background-color: var(--surface-subtle);
@@ -114,16 +431,44 @@
   font-weight: 500;
 }
 
+.nav-item {
+  position: relative;
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 55%;
+  background: var(--primary-mono);
+  border-radius: 0 3px 3px 0;
+}
+
+.nav-label {
+  font-family: var(--font-inter), -apple-system, monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--text-3);
+  padding: 10px 10px 6px;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
 /* ═══════════════════════════════════════════════
    TYPOGRAPHY REFINEMENT
    ═══════════════════════════════════════════════ */
 
-/* Ensure Inter is used everywhere */
 body, button, input, select, textarea {
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-/* Section labels */
+h1, h2, h3, h4 {
+  letter-spacing: -0.02em;
+}
+
 .label-uppercase {
   font-size: 10px;
   font-weight: 700;
@@ -144,11 +489,11 @@ body, button, input, select, textarea {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #D5D3D1;
+  background: var(--border-2);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #A8A29E;
+  background: var(--text-4);
 }
 
 /* ═══════════════════════════════════════════════

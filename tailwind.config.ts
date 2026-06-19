@@ -52,16 +52,40 @@ const config = {
         brand: {
           DEFAULT: "var(--brand)",
           soft: "var(--brand-soft)"
-        }
+        },
+        // Monochrome design-system tokens, ported from the DPDP tool so both
+        // products share one palette. Additive — nothing above was renamed,
+        // so existing usages of bg-background / text-foreground / etc keep
+        // working unchanged and just pick up the new values automatically.
+        bg2: "var(--bg-2)",
+        bg3: "var(--bg-3)",
+        text2: "var(--text-2)",
+        text3: "var(--text-3)",
+        text4: "var(--text-4)",
+        border2: "var(--border-2)",
+        sidebar: {
+          DEFAULT: "var(--sidebar-bg)",
+          text: "var(--sidebar-text)",
+          activeBg: "var(--sidebar-active-bg)",
+          activeText: "var(--sidebar-active-text)",
+          hoverBg: "var(--sidebar-hover-bg)",
+        },
+        glass: {
+          DEFAULT: "var(--glass-bg)",
+          border: "var(--glass-border)",
+        },
       },
       borderRadius: {
-        lg: "0.5rem",
-        md: "calc(0.5rem - 2px)",
-        sm: "calc(0.5rem - 4px)",
-        "2xl": "1rem"
+        lg: "var(--radius)",
+        md: "calc(var(--radius) - 4px)",
+        sm: "calc(var(--radius) - 6px)",
+        xl: "var(--radius-lg)",
+        "2xl": "var(--radius-xl)"
       },
       boxShadow: {
-        sm: "0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)"
+        sm: "var(--shadow-sm)",
+        DEFAULT: "var(--shadow)",
+        lg: "var(--shadow-lg)"
       }
     },
   },
