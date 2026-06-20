@@ -24,14 +24,20 @@ interface LicenseRevealModalProps {
 
 type Step = "sending_otp" | "awaiting_code" | "verifying" | "done" | "error";
 
-// All logs prefixed [LicenseRevealModal] so they're easy to filter in the
-// browser console (DevTools console search box: type "LicenseRevealModal").
-// Temporary diagnostic logging — added to trace exactly where the "stuck on
-// Sending verification code..." UI state was actually breaking down, since
-// the underlying API was confirmed working via a direct fetch() test but the
-// React component wasn't reflecting that. Safe to strip out once confirmed
-// fixed, but harmless to leave; these are plain console.log, not gated by
-// any debug flag, since this is browser-side and never touches a server log.
+/**
+ * Two-step OTP gate in front of a sensitive action (viewing or resending a
+ * customer's raw license key). Sends an OTP to the ADMIN'S OWN email — not
+ * the customer's — proving it's really the logged-in admin taking this
+ * action right now, not just someone with access to an already-open browser
+ * tab.
+ *
+ * The OTP request is triggered from a useEffect on mount, not from Radix
+ * Dialog's onOpenChange — Radix only calls onOpenChange in response to its
+ * own internal interactions (Escape, overlay click, close button), never
+ * just because a controlled dialog happens to mount already open, which is
+ * how this component is used (the parent only renders it once `open` is
+ * already true).
+ */
 export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: LicenseRevealModalProps) {
   const { toast } = useToast();
   const [step, setStep] = useState<Step>("sending_otp");
@@ -41,26 +47,20 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  console.log("[LicenseRevealModal] render — open:", open, "step:", step, "licenseId:", licenseId);
-
   const requestOtp = async () => {
-    console.log("[LicenseRevealModal] requestOtp() called");
     setStep("sending_otp");
     setError(null);
     try {
-      console.log("[LicenseRevealModal] requestOtp: about to fetch...");
       const res = await fetch(`/api/admin/licenses/${licenseId}/request-reveal-otp`, {
         method: "POST",
+        // Bounded so the dialog can never get stuck on "Sending verification
+        // code..." indefinitely if something server-side hangs.
         signal: AbortSignal.timeout(15000),
       });
-      console.log("[LicenseRevealModal] requestOtp: fetch resolved, status:", res.status);
       const data = await res.json();
-      console.log("[LicenseRevealModal] requestOtp: body parsed:", data);
       if (!res.ok) throw new Error(data.error || "Failed to send verification code");
-      console.log("[LicenseRevealModal] requestOtp: SUCCESS — calling setStep('awaiting_code')");
       setStep("awaiting_code");
     } catch (err: any) {
-      console.log("[LicenseRevealModal] requestOtp: CAUGHT ERROR —", err.name, err.message);
       const message = (err.name === "TimeoutError" || err.name === "AbortError")
         ? "Request timed out — the verification email may not have sent. Try again."
         : err.message;
@@ -69,20 +69,7 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
     }
   };
 
-  // THE ACTUAL FIX: Radix's Dialog only calls onOpenChange in response to its
-  // own internal interactions (Escape, overlay click, a close button) — it
-  // does NOT call onOpenChange(true) just because the dialog starts out
-  // open. Since this component only mounts once `open` is already true (the
-  // parent conditionally renders it), Radix never sees an "opening"
-  // transition to react to, so onOpenChange(true) was never actually being
-  // called. The old `if (next && ...) requestOtp()` check inside
-  // handleOpenChange was checking for something that, in this usage
-  // pattern, essentially never happens — confirmed by the diagnostic
-  // logging: exactly one render log fired, and zero of the function-call
-  // logs after it. A plain useEffect that runs once when the component
-  // mounts (which only happens when open is true) is the correct trigger.
   useEffect(() => {
-    console.log("[LicenseRevealModal] mount effect fired — open:", open, "licenseId:", licenseId);
     if (open) {
       requestOtp();
     }
@@ -90,9 +77,8 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
   }, [open, licenseId]);
 
   const handleOpenChange = (next: boolean) => {
-    console.log("[LicenseRevealModal] handleOpenChange called — next:", next, "current step:", step);
     if (!next) {
-      console.log("[LicenseRevealModal] handleOpenChange: closing, resetting state");
+      // Reset state on close so reopening starts fresh.
       setStep("sending_otp");
       setCode("");
       setRevealedKey(null);
@@ -104,7 +90,6 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("[LicenseRevealModal] handleVerify() called, code length:", code.length);
     if (code.length !== 6) return;
     setStep("verifying");
     setError(null);
@@ -113,15 +98,12 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
       const endpoint = action === "reveal"
         ? `/api/admin/licenses/${licenseId}/confirm-reveal`
         : `/api/admin/licenses/${licenseId}/resend-email`;
-      console.log("[LicenseRevealModal] handleVerify: posting to", endpoint);
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
       });
-      console.log("[LicenseRevealModal] handleVerify: status", res.status);
       const data = await res.json();
-      console.log("[LicenseRevealModal] handleVerify: body", data);
       if (!res.ok) throw new Error(data.error || "Verification failed");
 
       if (action === "reveal") {
@@ -130,10 +112,8 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
         setResentTo(data.sentTo);
         toast({ title: "Email sent", description: `License key resent to ${data.sentTo}` });
       }
-      console.log("[LicenseRevealModal] handleVerify: SUCCESS — calling setStep('done')");
       setStep("done");
     } catch (err: any) {
-      console.log("[LicenseRevealModal] handleVerify: CAUGHT ERROR —", err.message);
       setError(err.message);
       setCode("");
       setStep("awaiting_code");

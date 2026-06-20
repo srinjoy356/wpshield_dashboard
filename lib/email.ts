@@ -73,11 +73,7 @@ export async function sendEmailViaGraph(to: string, subject: string, htmlContent
 
     return sendRes.ok;
   } catch (err: any) {
-    // Covers the AbortSignal timeout firing (err.name === 'TimeoutError' /
-    // 'AbortError') as well as any other network-level failure (DNS, TLS,
-    // connection reset) that fetch() can throw rather than return as a
-    // non-ok response.
-    console.log("sendEmailViaGraph: request failed —", err.name, err.message);
+    console.error("sendEmailViaGraph failed:", err.name, err.message);
     return false;
   }
 }
