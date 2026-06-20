@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -69,12 +69,28 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
     }
   };
 
-  const handleOpenChange = (next: boolean) => {
-    console.log("[LicenseRevealModal] handleOpenChange called — next:", next, "current step:", step);
-    if (next && step !== "awaiting_code") {
-      console.log("[LicenseRevealModal] handleOpenChange: triggering requestOtp()");
+  // THE ACTUAL FIX: Radix's Dialog only calls onOpenChange in response to its
+  // own internal interactions (Escape, overlay click, a close button) — it
+  // does NOT call onOpenChange(true) just because the dialog starts out
+  // open. Since this component only mounts once `open` is already true (the
+  // parent conditionally renders it), Radix never sees an "opening"
+  // transition to react to, so onOpenChange(true) was never actually being
+  // called. The old `if (next && ...) requestOtp()` check inside
+  // handleOpenChange was checking for something that, in this usage
+  // pattern, essentially never happens — confirmed by the diagnostic
+  // logging: exactly one render log fired, and zero of the function-call
+  // logs after it. A plain useEffect that runs once when the component
+  // mounts (which only happens when open is true) is the correct trigger.
+  useEffect(() => {
+    console.log("[LicenseRevealModal] mount effect fired — open:", open, "licenseId:", licenseId);
+    if (open) {
       requestOtp();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, licenseId]);
+
+  const handleOpenChange = (next: boolean) => {
+    console.log("[LicenseRevealModal] handleOpenChange called — next:", next, "current step:", step);
     if (!next) {
       console.log("[LicenseRevealModal] handleOpenChange: closing, resetting state");
       setStep("sending_otp");
