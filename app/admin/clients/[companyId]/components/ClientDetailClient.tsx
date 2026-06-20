@@ -48,6 +48,7 @@ interface LicenseRow {
   last_delivery_attempt_at: string | null;
   created_at: string;
   hasRecoverableKey: boolean;
+  isActivated: boolean;
 }
 
 interface ClientDetailClientProps {
@@ -371,6 +372,15 @@ export function ClientDetailClient({
                         {license.delivery_status === 'pending' && (
                           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
                             Delivery pending
+                          </span>
+                        )}
+                        {license.isActivated ? (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Activated
+                          </span>
+                        ) : (
+                          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-1">
+                            <AlertTriangle className="h-3 w-3" /> Not activated
                           </span>
                         )}
                       </div>
