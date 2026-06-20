@@ -44,12 +44,24 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
     setStep("sending_otp");
     setError(null);
     try {
-      const res = await fetch(`/api/admin/licenses/${licenseId}/request-reveal-otp`, { method: "POST" });
+      const res = await fetch(`/api/admin/licenses/${licenseId}/request-reveal-otp`, {
+        method: "POST",
+        // 15s — generous enough for a real email send, but bounded so the
+        // dialog can never get stuck on "Sending verification code..."
+        // indefinitely if something server-side hangs in a way the server's
+        // own timeouts didn't catch. The server-side fix (timeouts on the
+        // Graph API calls in lib/email.ts) is the real fix; this is a
+        // backstop so the UI fails visibly either way.
+        signal: AbortSignal.timeout(15000),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to send verification code");
       setStep("awaiting_code");
     } catch (err: any) {
-      setError(err.message);
+      const message = (err.name === "TimeoutError" || err.name === "AbortError")
+        ? "Request timed out — the verification email may not have sent. Try again."
+        : err.message;
+      setError(message);
       setStep("error");
     }
   };

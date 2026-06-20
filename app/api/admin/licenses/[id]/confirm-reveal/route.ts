@@ -13,6 +13,12 @@ function hashOtp(code: string): string {
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  // Top-level try/catch around the whole handler — previously only the
+  // decryptLicenseKey() call was wrapped, so any other failure (a missing
+  // env var, a malformed request body, a database error) resulted in an
+  // unhandled exception and a non-JSON error response instead of the clean
+  // JSON error the modal expects.
+  try {
   const { id: licenseId } = await params;
   const supabase = createClient();
 
@@ -100,4 +106,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
 
   return NextResponse.json({ success: true, licenseKey: rawKey });
+
+  } catch (err: any) {
+    console.error('[confirm-reveal]', err.message);
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
+  }
 }

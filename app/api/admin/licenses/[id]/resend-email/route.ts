@@ -20,6 +20,11 @@ function hashOtp(code: string): string {
 // request-reveal-otp and can use it for either this or confirm-reveal,
 // whichever action they actually take.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  // Top-level try/catch — same reasoning as confirm-reveal/route.ts: this
+  // handler previously had no wrapper around most of its logic, so a failure
+  // anywhere outside the decrypt call (a missing env var, a malformed body,
+  // a DB error) would throw unhandled instead of returning clean JSON.
+  try {
   const { id: licenseId } = await params;
   const supabase = createClient();
 
@@ -145,4 +150,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   return NextResponse.json({ success: true, sentTo: recipientEmail });
+
+  } catch (err: any) {
+    console.error('[resend-email]', err.message);
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
+  }
 }
