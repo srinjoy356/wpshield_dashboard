@@ -24,13 +24,14 @@ interface LicenseRevealModalProps {
 
 type Step = "sending_otp" | "awaiting_code" | "verifying" | "done" | "error";
 
-/**
- * Two-step OTP gate in front of a sensitive action (viewing or resending a
- * customer's raw license key). Opening this dialog immediately requests an
- * OTP sent to the ADMIN'S OWN email — not the customer's — proving it's
- * really the logged-in admin taking this action right now, not just someone
- * with access to an already-open browser tab.
- */
+// All logs prefixed [LicenseRevealModal] so they're easy to filter in the
+// browser console (DevTools console search box: type "LicenseRevealModal").
+// Temporary diagnostic logging — added to trace exactly where the "stuck on
+// Sending verification code..." UI state was actually breaking down, since
+// the underlying API was confirmed working via a direct fetch() test but the
+// React component wasn't reflecting that. Safe to strip out once confirmed
+// fixed, but harmless to leave; these are plain console.log, not gated by
+// any debug flag, since this is browser-side and never touches a server log.
 export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: LicenseRevealModalProps) {
   const { toast } = useToast();
   const [step, setStep] = useState<Step>("sending_otp");
@@ -40,24 +41,26 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  console.log("[LicenseRevealModal] render — open:", open, "step:", step, "licenseId:", licenseId);
+
   const requestOtp = async () => {
+    console.log("[LicenseRevealModal] requestOtp() called");
     setStep("sending_otp");
     setError(null);
     try {
+      console.log("[LicenseRevealModal] requestOtp: about to fetch...");
       const res = await fetch(`/api/admin/licenses/${licenseId}/request-reveal-otp`, {
         method: "POST",
-        // 15s — generous enough for a real email send, but bounded so the
-        // dialog can never get stuck on "Sending verification code..."
-        // indefinitely if something server-side hangs in a way the server's
-        // own timeouts didn't catch. The server-side fix (timeouts on the
-        // Graph API calls in lib/email.ts) is the real fix; this is a
-        // backstop so the UI fails visibly either way.
         signal: AbortSignal.timeout(15000),
       });
+      console.log("[LicenseRevealModal] requestOtp: fetch resolved, status:", res.status);
       const data = await res.json();
+      console.log("[LicenseRevealModal] requestOtp: body parsed:", data);
       if (!res.ok) throw new Error(data.error || "Failed to send verification code");
+      console.log("[LicenseRevealModal] requestOtp: SUCCESS — calling setStep('awaiting_code')");
       setStep("awaiting_code");
     } catch (err: any) {
+      console.log("[LicenseRevealModal] requestOtp: CAUGHT ERROR —", err.name, err.message);
       const message = (err.name === "TimeoutError" || err.name === "AbortError")
         ? "Request timed out — the verification email may not have sent. Try again."
         : err.message;
@@ -66,13 +69,14 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
     }
   };
 
-  // Send the OTP the moment the dialog opens, rather than requiring an extra click.
   const handleOpenChange = (next: boolean) => {
+    console.log("[LicenseRevealModal] handleOpenChange called — next:", next, "current step:", step);
     if (next && step !== "awaiting_code") {
+      console.log("[LicenseRevealModal] handleOpenChange: triggering requestOtp()");
       requestOtp();
     }
     if (!next) {
-      // Reset state on close so reopening starts fresh.
+      console.log("[LicenseRevealModal] handleOpenChange: closing, resetting state");
       setStep("sending_otp");
       setCode("");
       setRevealedKey(null);
@@ -84,6 +88,7 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("[LicenseRevealModal] handleVerify() called, code length:", code.length);
     if (code.length !== 6) return;
     setStep("verifying");
     setError(null);
@@ -92,12 +97,15 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
       const endpoint = action === "reveal"
         ? `/api/admin/licenses/${licenseId}/confirm-reveal`
         : `/api/admin/licenses/${licenseId}/resend-email`;
+      console.log("[LicenseRevealModal] handleVerify: posting to", endpoint);
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
       });
+      console.log("[LicenseRevealModal] handleVerify: status", res.status);
       const data = await res.json();
+      console.log("[LicenseRevealModal] handleVerify: body", data);
       if (!res.ok) throw new Error(data.error || "Verification failed");
 
       if (action === "reveal") {
@@ -106,8 +114,10 @@ export function LicenseRevealModal({ licenseId, action, open, onOpenChange }: Li
         setResentTo(data.sentTo);
         toast({ title: "Email sent", description: `License key resent to ${data.sentTo}` });
       }
+      console.log("[LicenseRevealModal] handleVerify: SUCCESS — calling setStep('done')");
       setStep("done");
     } catch (err: any) {
+      console.log("[LicenseRevealModal] handleVerify: CAUGHT ERROR —", err.message);
       setError(err.message);
       setCode("");
       setStep("awaiting_code");
