@@ -5,23 +5,58 @@ import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle } from "lucide-react";
 import { Company } from "@/types";
 
-interface Props {
-  company: Company;
+interface SiteOverride {
+  id: string;
+  url: string;
+  maintenance_mode: boolean;
+  site_controls_enabled: boolean;
 }
 
-export function MaintenanceModeCard({ company }: Props) {
+interface Props {
+  company: Company;
+  /** When provided, controls per-site maintenance mode for this site only */
+  site?: SiteOverride;
+}
+
+/**
+ * MaintenanceModeCard
+ *
+ * Two modes:
+ * - Company mode (site prop absent): toggles companies.maintenance_mode,
+ *   which applies to ALL sites of this company that don't have per-site
+ *   controls enabled. Original behaviour, fully backward compatible.
+ *
+ * - Per-site mode (site prop present): toggles sites.maintenance_mode for
+ *   that site only, and sets sites.site_controls_enabled = true, so this
+ *   site stops inheriting the company-level setting.
+ *
+ * Force Sync has been moved to <ForceSyncButton> and should be placed
+ * at the page level so it applies to all features, not just maintenance mode.
+ */
+export function MaintenanceModeCard({ company, site }: Props) {
   const { toast } = useToast();
-  const [enabled, setEnabled] = useState(company.maintenance_mode ?? false);
+
+  const initialEnabled = site
+    ? (site.site_controls_enabled ? site.maintenance_mode : company.maintenance_mode ?? false)
+    : (company.maintenance_mode ?? false);
+
+  const [enabled, setEnabled] = useState(initialEnabled);
   const [loading, setLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
+
+  const isPerSite = !!site;
 
   async function handleToggle(newValue: boolean) {
     setLoading(true);
     try {
-      const res = await fetch("/api/settings/maintenance", {
+      const endpoint = isPerSite ? "/api/settings/site-maintenance" : "/api/settings/maintenance";
+      const payload  = isPerSite
+        ? { site_id: site!.id, enabled: newValue }
+        : { enabled: newValue, company_id: company.company_id };
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: newValue, company_id: company.company_id }),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -33,8 +68,12 @@ export function MaintenanceModeCard({ company }: Props) {
       toast({
         title: newValue ? "Maintenance mode enabled" : "Maintenance mode disabled",
         description: newValue
-          ? "Visitors will see the maintenance page."
-          : "Your site is back online.",
+          ? isPerSite
+            ? `${site!.url} will show the maintenance page.`
+            : "All your sites will show the maintenance page."
+          : isPerSite
+            ? `${site!.url} is back online.`
+            : "Your sites are back online.",
       });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -43,30 +82,28 @@ export function MaintenanceModeCard({ company }: Props) {
     }
   }
 
-  async function handleForceSync() {
-    setSyncing(true);
-    // The plugin re-fetches on its next request after cache expiry;
-    // force sync can be a no-op API call that logs the intent.
-    // For now, inform the user the plugin will re-read within 1 minute.
-    await new Promise((r) => setTimeout(r, 800)); // simulate
-    setSyncing(false);
-    toast({
-      title: "Sync triggered",
-      description: "The plugin will fetch the new config on its next request.",
-    });
-  }
-
   return (
     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-base font-medium text-[var(--foreground)]">
             Maintenance Mode
+            {isPerSite && (
+              <span className="ml-2 text-xs font-normal text-[var(--muted)]">
+                — this site only
+              </span>
+            )}
           </h3>
           <p className="mt-1 text-sm text-[var(--muted)]">
-            Show a branded maintenance page to all non-admin visitors.
-            Logged-in administrators bypass it automatically.
+            {isPerSite
+              ? `Show a branded maintenance page to all non-admin visitors on ${site!.url}. Other sites are unaffected.`
+              : "Show a branded maintenance page to all non-admin visitors. Logged-in administrators bypass it automatically."}
           </p>
+          {isPerSite && !site!.site_controls_enabled && (
+            <p className="mt-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
+              Currently inheriting company-wide setting. Toggling will enable per-site control.
+            </p>
+          )}
         </div>
 
         {/* Toggle switch */}
@@ -100,27 +137,13 @@ export function MaintenanceModeCard({ company }: Props) {
         <div className="mt-4 flex items-start gap-3 rounded-md border border-red-200 bg-red-50 p-4">
           <AlertTriangle className="h-5 w-5 shrink-0 text-red-500 mt-0.5" />
           <p className="text-sm text-red-700">
-            <strong>Your site is currently in maintenance mode.</strong> Visitors
-            cannot access it. Remember to turn this off when your maintenance
-            work is complete.
+            <strong>
+              {isPerSite ? `${site!.url} is currently in maintenance mode.` : "Your site is currently in maintenance mode."}
+            </strong>{" "}
+            Visitors cannot access it. Remember to turn this off when your maintenance work is complete.
           </p>
         </div>
       )}
-
-      {/* Force Sync */}
-      <div className="mt-4 flex items-center gap-3 border-t border-[var(--border)] pt-4">
-        <button
-          onClick={handleForceSync}
-          disabled={syncing}
-          className="rounded px-3 py-1.5 text-sm border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--surface-subtle)] disabled:opacity-50 transition-colors"
-        >
-          {syncing ? "Syncing…" : "Force Sync"}
-        </button>
-        <p className="text-xs text-[var(--muted)]">
-          The WordPress plugin checks for config changes every 15 minutes. Force
-          sync requests an immediate refresh.
-        </p>
-      </div>
     </div>
   );
 }

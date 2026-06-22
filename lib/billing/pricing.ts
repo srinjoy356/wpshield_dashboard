@@ -23,34 +23,34 @@ export interface EffectivePrice {
 /**
  * Returns what a plan actually costs right now, accounting for IS_LIVE_MODE.
  *
- * In test mode (the current/default state — IS_LIVE_MODE unset or 'false'):
- * always price_inr_test, exactly as today.
+ * In test mode (IS_LIVE_MODE unset or 'false'): always price_inr_test.
  *
- * In live mode: prefers the *_live column matching the plan's currency, but
- * falls back to the test price rather than ever charging/displaying a NULL
- * or zero amount — a plan that hasn't had its live price configured yet
- * should never silently become free.
+ * In live mode: uses price_inr_live. If that column is null or zero, we THROW
+ * rather than falling back to the test price — a misconfigured plan should fail
+ * loudly in live mode, not silently charge ₹0 or the wrong amount.
+ *
+ * Fix if you see this error:
+ *   UPDATE plans SET price_inr_live = <amount> WHERE id = '<plan_id>';
  */
 export function getEffectivePrice(plan: PlanPricingRow): EffectivePrice {
   const isLive = process.env.IS_LIVE_MODE === 'true';
-  const currency: 'INR' | 'USD' = plan.currency === 'USD' ? 'USD' : 'INR';
 
   if (!isLive) {
     return { amount: plan.price_inr_test ?? 0, currency: 'INR', isLive: false };
   }
 
-  if (currency === 'USD') {
-    const live = plan.price_usd_live;
-    if (live != null && live > 0) return { amount: live, currency: 'USD', isLive: true };
-  } else {
-    const live = plan.price_inr_live;
-    if (live != null && live > 0) return { amount: live, currency: 'INR', isLive: true };
+  const live = plan.price_inr_live;
+  if (live != null && live > 0) {
+    return { amount: live, currency: 'INR', isLive: true };
   }
 
-  // Live mode is on, but this specific plan has no live price configured yet
-  // — fail safe to test pricing rather than charging nothing.
-  console.error(`[pricing] IS_LIVE_MODE is true but plan has no live price configured — falling back to test price.`);
-  return { amount: plan.price_inr_test ?? 0, currency: 'INR', isLive: false };
+  // Hard fail — no silent fallback to test prices in live mode.
+  // If you hit this it means price_inr_live was not set before IS_LIVE_MODE=true.
+  // Fix: run  UPDATE plans SET price_inr_live = <amount> WHERE id = '<id>';
+  throw new Error(
+    `[pricing] IS_LIVE_MODE=true but plan has no price_inr_live configured. ` +
+    `Set price_inr_live on this plan in the database before going live.`
+  );
 }
 
 export function formatPrice(price: EffectivePrice): string {

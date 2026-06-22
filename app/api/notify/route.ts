@@ -19,6 +19,16 @@ export async function POST(request: Request) {
   const { allowed, response: denyResponse } = await verifyCompanyAccess(supabase, user.id, company_id);
   if (!allowed) return denyResponse!;
 
+  // Gate: email and Slack alerts require Solo+ plan
+  const { getPlanFeatures } = await import('@/lib/billing/get-plan-features');
+  const features = await getPlanFeatures(supabase, user.id);
+  if (!features.emailAlerts) {
+    return NextResponse.json(
+      { error: "Email and Slack alerts require Solo plan or above. Please upgrade your subscription." },
+      { status: 403 }
+    );
+  }
+
   const admin = createAdminClient();
   const { encryptString } = await import('@/lib/security/encryption');
   

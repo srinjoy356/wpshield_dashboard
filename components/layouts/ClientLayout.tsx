@@ -49,6 +49,7 @@ const clientNav: NavItem[] = [
   { label: "Inventory", href: "/app/inventory", icon: Package },
   { label: "Firewall", href: "/app/firewall", icon: ShieldAlert },
   { label: "Hardening", href: "/app/hardening", icon: Shield },
+  { label: "My Services", href: "/app/services", icon: CreditCard },
   { label: "Billing", href: "/app/billing", icon: CreditCard },
   { label: "Reports", href: "/app/reports", icon: FileDown },
   { label: "Alerts", href: "/app/alerts", icon: Bell },

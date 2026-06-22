@@ -47,7 +47,7 @@ export async function getLoginEvents(
 
 export async function getFileEvents(
   supabase: SupabaseClient,
-  options?: { companyId?: string; limit?: number }
+  options?: { companyId?: string; limit?: number; since?: string }
 ) {
   let query = supabase
     .from("wpshield_events_file")
@@ -56,6 +56,11 @@ export async function getFileEvents(
 
   if (options?.companyId) {
     query = query.eq("company_id", options.companyId);
+  }
+
+  // 'since' used for plan-gated time windows (Core = 7 days, Solo+ = 90 days)
+  if (options?.since) {
+    query = query.gte("occurred_at", options.since);
   }
 
   if (options?.limit) {

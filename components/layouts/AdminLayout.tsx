@@ -43,6 +43,7 @@ const adminNav: NavItem[] = [
   { label: "Billing", href: "/admin/billing", icon: CreditCard },
   { label: "Alerts", href: "/admin/alerts", icon: Bell },
   { label: "Activity Logs", href: "/admin/activity", icon: Activity },
+  { label: "Managed Services", href: "/admin/managed-services", icon: FileSignature },
   { label: "Analyst Reviews", href: "/admin/reviews", icon: FileSignature },
   { label: "Plugin Releases", href: "/admin/plugin", icon: Package },
   { label: "Settings", href: "/admin/settings", icon: Settings },

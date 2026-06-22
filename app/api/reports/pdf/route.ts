@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentProfile } from "@/lib/queries/profile";
+import { getPlanFeatures } from "@/lib/billing/get-plan-features";
 import { getReportData } from "@/lib/reportData";
 import { generatePdfBuffer } from "@/lib/pdfGenerator";
 
@@ -9,44 +10,40 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const supabase = createClient();
-    const profile = await getCurrentProfile(supabase);
+    const profile  = await getCurrentProfile(supabase);
+    if (!profile) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    if (!profile) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { data: { user } } = await supabase.auth.getUser();
+    const features = await getPlanFeatures(supabase, user!.id);
+
+    // Gate: PDF reports require Solo+ (feature_pdf_reports)
+    if (!features.pdfReports) {
+      return NextResponse.json(
+        { error: "PDF reports require Solo plan or above. Please upgrade your subscription." },
+        { status: 403 }
+      );
     }
 
     const { searchParams } = new URL(request.url);
     const requestedCompanyId = searchParams.get("company_id");
-
-    const companyId = ["admin","super_admin"].includes(profile.role) && requestedCompanyId 
-      ? requestedCompanyId 
+    const companyId = ["admin","super_admin"].includes(profile.role as string) && requestedCompanyId
+      ? requestedCompanyId
       : profile.company_id;
 
-    if (!companyId) {
-      return NextResponse.json({ error: "Company ID required" }, { status: 400 });
-    }
+    if (!companyId) return NextResponse.json({ error: "Company ID required" }, { status: 400 });
 
     const periodDays = parseInt(searchParams.get("period") || "30", 10);
-
     const reportData = await getReportData(supabase, companyId, periodDays);
-    const pdfBuffer = await generatePdfBuffer(reportData);
+    const pdfBuffer  = await generatePdfBuffer(reportData);
 
-    const safeCompanyName = reportData.company.display_name.replace(/[^a-zA-Z0-9-_]/g, "_");
-    const dateStr = new Date().toISOString().split("T")[0];
-    const filename = `security-report-${safeCompanyName}-${dateStr}.pdf`;
-
-    return new Response(new Uint8Array(pdfBuffer), {
+    return new Response(pdfBuffer as any, {
       headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Type":        "application/pdf",
+        "Content-Disposition": `attachment; filename="wpshield-report-${companyId}.pdf"`,
       },
     });
-
-  } catch (error: any) {
-    console.error("Failed to generate PDF report:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error("[reports/pdf]", err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

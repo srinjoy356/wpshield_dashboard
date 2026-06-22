@@ -56,9 +56,23 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Gate: Excel reports require Solo+ (feature_pdf_reports covers both PDF and Excel)
+    const isAdminRole = ["admin","super_admin"].includes(profile.role as string);
+    if (!isAdminRole) {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { getPlanFeatures } = await import('@/lib/billing/get-plan-features');
+      const features = await getPlanFeatures(supabase, user!.id);
+      if (!features.pdfReports) {
+        return NextResponse.json(
+          { error: "Excel reports require Solo plan or above. Please upgrade your subscription." },
+          { status: 403 }
+        );
+      }
+    }
+
     const { searchParams } = new URL(request.url);
     const requestedCompanyId = searchParams.get("company_id");
-    const companyId = ["admin","super_admin"].includes(profile.role) && requestedCompanyId
+    const companyId = isAdminRole && requestedCompanyId
       ? requestedCompanyId
       : profile.company_id;
 

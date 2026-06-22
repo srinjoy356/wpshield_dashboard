@@ -22,6 +22,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "enabled must be a boolean" }, { status: 400 });
   }
 
+  // 2b. Gate: IP blocking requires Solo+
+  const { getPlanFeatures } = await import('@/lib/billing/get-plan-features');
+  const features = await getPlanFeatures(supabase, user.id);
+  if (!features.ipBlocking) {
+    return NextResponse.json(
+      { error: "IP blocking requires Solo plan or above. Please upgrade your subscription." },
+      { status: 403 }
+    );
+  }
+
   // 3. Verify tenant ownership (SEC-001)
   const { allowed, response: denyResponse } = await verifyCompanyAccess(supabase, user.id, company_id);
   if (!allowed) return denyResponse!;

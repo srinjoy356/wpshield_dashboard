@@ -43,6 +43,16 @@ export async function POST(request: Request) {
   const { allowed, response: denyResponse } = await verifyCompanyAccess(supabase, user.id, company_id);
   if (!allowed) return denyResponse!;
 
+  // Gate: geo blocking requires Solo+
+  const { getPlanFeatures } = await import('@/lib/billing/get-plan-features');
+  const features = await getPlanFeatures(supabase, user.id);
+  if (!features.geoBlocking) {
+    return NextResponse.json(
+      { error: "Geo blocking requires Solo plan or above. Please upgrade your subscription." },
+      { status: 403 }
+    );
+  }
+
   const admin = createAdminClient();
 
   const { data: existing } = await admin

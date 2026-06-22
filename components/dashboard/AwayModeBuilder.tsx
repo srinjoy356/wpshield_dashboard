@@ -37,31 +37,20 @@ const DAYS = [
   { label: "Sat", value: 6 },
 ];
 
-// Build a plain-English summary like "wp-admin locked Mon–Fri outside 9:00AM–6:00PM IST"
 function buildSummary(schedule: AwayModeSchedule): string {
   if (!schedule.enabled) return "Away mode is disabled. wp-admin is accessible at all times.";
 
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const selectedDays = schedule.allowed_days
-    .sort((a, b) => a - b)
-    .map((d) => dayNames[d]);
-
-  // Compress consecutive day ranges: [Mon, Tue, Wed, Thu, Fri] → Mon–Fri
-  let dayStr = selectedDays.length === 0
+  let dayStr = schedule.allowed_days.length === 0
     ? "no days"
     : compressDays(schedule.allowed_days.sort((a, b) => a - b));
 
-  // Format times to 12h for readability
-  const start = formatTime12h(schedule.allowed_start);
-  const end   = formatTime12h(schedule.allowed_end);
-
-  // Derive a short timezone label
+  const start   = formatTime12h(schedule.allowed_start);
+  const end     = formatTime12h(schedule.allowed_end);
   const tzShort = getShortTz(schedule.timezone);
-
-  const whitelistNote =
-    schedule.whitelist_ips.length > 0
-      ? ` (${schedule.whitelist_ips.length} IP${schedule.whitelist_ips.length > 1 ? "s" : ""} whitelisted)`
-      : "";
+  const whitelistNote = schedule.whitelist_ips.length > 0
+    ? ` (${schedule.whitelist_ips.length} IP${schedule.whitelist_ips.length > 1 ? "s" : ""} whitelisted)`
+    : "";
 
   return `wp-admin is accessible on ${dayStr} from ${start} to ${end} ${tzShort}.` +
     ` Outside these hours, login is blocked${whitelistNote}.`;
@@ -81,9 +70,7 @@ function compressDays(days: number[]): string {
     if (curr === prev + 1) {
       prev = curr;
     } else {
-      ranges.push(
-        rangeStart === prev ? names[rangeStart] : `${names[rangeStart]}–${names[prev]}`
-      );
+      ranges.push(rangeStart === prev ? names[rangeStart] : `${names[rangeStart]}–${names[prev]}`);
       rangeStart = curr;
       prev = curr;
     }
@@ -100,45 +87,63 @@ function formatTime12h(time: string): string {
 
 function getShortTz(tz: string): string {
   try {
-    // e.g. "Asia/Kolkata" → get the abbreviation from Intl
-    const now = new Date();
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      timeZoneName: "short",
-    }).formatToParts(now);
+    const now   = new Date();
+    const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "short" }).formatToParts(now);
     return parts.find((p) => p.type === "timeZoneName")?.value ?? tz;
   } catch {
     return tz;
   }
 }
 
-// ── Default schedule values ─────────────────────────────────────────────────
 function defaultSchedule(): AwayModeSchedule {
   return {
     enabled: false,
     timezone: "Asia/Kolkata",
-    allowed_days: [1, 2, 3, 4, 5], // Mon–Fri
+    allowed_days: [1, 2, 3, 4, 5],
     allowed_start: "09:00",
     allowed_end: "18:00",
     whitelist_ips: [],
   };
 }
 
-interface Props {
-  company: Company;
+interface SiteOverride {
+  id: string;
+  url: string;
+  away_mode_schedule: AwayModeSchedule | null;
+  site_controls_enabled: boolean;
 }
 
-export function AwayModeBuilder({ company }: Props) {
+interface Props {
+  company: Company;
+  /** When provided, manages away mode for this specific site only */
+  site?: SiteOverride;
+}
+
+/**
+ * AwayModeBuilder
+ *
+ * Two modes:
+ * - Company mode (no site prop): saves to company-wide away_mode_schedule.
+ *   All sites without per-site controls enabled inherit this.
+ *
+ * - Per-site mode (site prop): saves to sites.away_mode_schedule for that
+ *   site only, and sets site_controls_enabled = true.
+ */
+export function AwayModeBuilder({ company, site }: Props) {
   const { toast } = useToast();
 
-  // Initialise from DB or use defaults
-  const [schedule, setSchedule] = useState<AwayModeSchedule>(
-    company.away_mode_schedule ?? defaultSchedule()
-  );
-  const [ipInput, setIpInput] = useState("");
-  const [saving, setSaving] = useState(false);
+  const isPerSite = !!site;
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // Initialise: per-site takes the site's own schedule; company-level takes company's
+  const initialSchedule = isPerSite
+    ? (site!.site_controls_enabled && site!.away_mode_schedule
+        ? site!.away_mode_schedule
+        : company.away_mode_schedule ?? defaultSchedule())
+    : (company.away_mode_schedule ?? defaultSchedule());
+
+  const [schedule, setSchedule] = useState<AwayModeSchedule>(initialSchedule);
+  const [ipInput, setIpInput]   = useState("");
+  const [saving, setSaving]     = useState(false);
 
   function toggleDay(day: number) {
     setSchedule((prev) => ({
@@ -152,8 +157,6 @@ export function AwayModeBuilder({ company }: Props) {
   function addWhitelistIp() {
     const ip = ipInput.trim();
     if (!ip) return;
-
-    // Basic IPv4 validation
     const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/;
     if (!ipv4.test(ip)) {
       toast({ title: "Invalid IP", description: "Enter a valid IPv4 address.", variant: "destructive" });
@@ -163,29 +166,26 @@ export function AwayModeBuilder({ company }: Props) {
       toast({ title: "Already added", description: `${ip} is already in the whitelist.`, variant: "destructive" });
       return;
     }
-    setSchedule((prev) => ({
-      ...prev,
-      whitelist_ips: [...prev.whitelist_ips, ip],
-    }));
+    setSchedule((prev) => ({ ...prev, whitelist_ips: [...prev.whitelist_ips, ip] }));
     setIpInput("");
   }
 
   function removeWhitelistIp(ip: string) {
-    setSchedule((prev) => ({
-      ...prev,
-      whitelist_ips: prev.whitelist_ips.filter((i) => i !== ip),
-    }));
+    setSchedule((prev) => ({ ...prev, whitelist_ips: prev.whitelist_ips.filter((i) => i !== ip) }));
   }
-
-  // ── Save ──────────────────────────────────────────────────────────────────
 
   async function handleSave() {
     setSaving(true);
     try {
-      const res = await fetch("/api/settings/away-mode", {
+      const endpoint = isPerSite ? "/api/settings/site-away-mode" : "/api/settings/away-mode";
+      const payload  = isPerSite
+        ? { site_id: site!.id, schedule }
+        : { schedule, company_id: company.company_id };
+
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ schedule, company_id: company.company_id }),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -193,7 +193,9 @@ export function AwayModeBuilder({ company }: Props) {
 
       toast({
         title: "Away mode saved",
-        description: "The plugin will apply the new schedule within 15 minutes.",
+        description: isPerSite
+          ? `Schedule saved for ${site!.url}. Changes apply on next sync.`
+          : "The plugin will apply the new schedule within 15 minutes.",
       });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -202,15 +204,21 @@ export function AwayModeBuilder({ company }: Props) {
     }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
-
   return (
     <div className="space-y-6">
+      {isPerSite && !site!.site_controls_enabled && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+          Currently inheriting company-wide schedule. Saving will switch this site to per-site control.
+        </div>
+      )}
 
       {/* Enable toggle */}
       <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--surface)] p-5">
         <div>
-          <p className="text-sm font-medium text-[var(--foreground)]">Enable Away Mode</p>
+          <p className="text-sm font-medium text-[var(--foreground)]">
+            Enable Away Mode
+            {isPerSite && <span className="ml-2 text-xs font-normal text-[var(--muted)]">— this site only</span>}
+          </p>
           <p className="text-xs text-[var(--muted)] mt-0.5">
             Restrict wp-admin access to the hours and days you specify below.
           </p>
@@ -231,10 +239,8 @@ export function AwayModeBuilder({ company }: Props) {
         </button>
       </div>
 
-      {/* Schedule fields — only shown when enabled */}
       {schedule.enabled && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] divide-y divide-[var(--border)]">
-
           {/* Timezone */}
           <div className="p-5">
             <label className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--foreground)]">
@@ -246,20 +252,13 @@ export function AwayModeBuilder({ company }: Props) {
               onChange={(e) => setSchedule((p) => ({ ...p, timezone: e.target.value }))}
               className="w-full rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--foreground)]"
             >
-              {TIMEZONES.map((tz) => (
-                <option key={tz} value={tz}>{tz}</option>
-              ))}
+              {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
             </select>
-            <p className="mt-1.5 text-xs text-[var(--muted)]">
-              Choose the timezone that matches your WordPress site's location.
-            </p>
           </div>
 
           {/* Allowed days */}
           <div className="p-5">
-            <label className="mb-3 block text-sm font-medium text-[var(--foreground)]">
-              Allowed Days
-            </label>
+            <label className="mb-3 block text-sm font-medium text-[var(--foreground)]">Allowed Days</label>
             <div className="flex flex-wrap gap-2">
               {DAYS.map((day) => {
                 const selected = schedule.allowed_days.includes(day.value);
@@ -278,9 +277,6 @@ export function AwayModeBuilder({ company }: Props) {
                 );
               })}
             </div>
-            <p className="mt-2 text-xs text-[var(--muted)]">
-              wp-admin is accessible only on selected days.
-            </p>
           </div>
 
           {/* Allowed hours */}
@@ -295,9 +291,7 @@ export function AwayModeBuilder({ company }: Props) {
                 <input
                   type="time"
                   value={schedule.allowed_start}
-                  onChange={(e) =>
-                    setSchedule((p) => ({ ...p, allowed_start: e.target.value }))
-                  }
+                  onChange={(e) => setSchedule((p) => ({ ...p, allowed_start: e.target.value }))}
                   className="rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--foreground)]"
                 />
               </div>
@@ -307,9 +301,7 @@ export function AwayModeBuilder({ company }: Props) {
                 <input
                   type="time"
                   value={schedule.allowed_end}
-                  onChange={(e) =>
-                    setSchedule((p) => ({ ...p, allowed_end: e.target.value }))
-                  }
+                  onChange={(e) => setSchedule((p) => ({ ...p, allowed_end: e.target.value }))}
                   className="rounded-md border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--foreground)]"
                 />
               </div>
@@ -318,9 +310,7 @@ export function AwayModeBuilder({ company }: Props) {
 
           {/* IP whitelist */}
           <div className="p-5">
-            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">
-              Whitelisted IPs
-            </label>
+            <label className="mb-2 block text-sm font-medium text-[var(--foreground)]">Whitelisted IPs</label>
             <p className="mb-3 text-xs text-[var(--muted)]">
               These IPs can always access wp-admin regardless of the schedule.
               Add your own IP here before enabling to avoid locking yourself out.
@@ -350,10 +340,7 @@ export function AwayModeBuilder({ company }: Props) {
                     className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-1 text-xs font-mono text-[var(--foreground)]"
                   >
                     {ip}
-                    <button
-                      onClick={() => removeWhitelistIp(ip)}
-                      className="text-[var(--muted)] hover:text-[var(--foreground)]"
-                    >
+                    <button onClick={() => removeWhitelistIp(ip)} className="text-[var(--muted)] hover:text-[var(--foreground)]">
                       <X className="h-3 w-3" />
                     </button>
                   </span>
@@ -364,15 +351,12 @@ export function AwayModeBuilder({ company }: Props) {
         </div>
       )}
 
-      {/* Plain-English summary */}
+      {/* Summary */}
       <div className="flex items-start gap-3 rounded-lg border border-[var(--border)] bg-[var(--surface-subtle)] p-4">
         <Info className="h-4 w-4 shrink-0 text-[var(--muted)] mt-0.5" strokeWidth={1.5} />
-        <p className="text-sm text-[var(--muted)] leading-relaxed">
-          {buildSummary(schedule)}
-        </p>
+        <p className="text-sm text-[var(--muted)] leading-relaxed">{buildSummary(schedule)}</p>
       </div>
 
-      {/* Save button */}
       <div className="flex justify-end">
         <button
           onClick={handleSave}

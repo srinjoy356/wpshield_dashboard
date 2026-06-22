@@ -25,7 +25,7 @@ export async function GET(request: Request) {
       .single();
 
     let isPremium = false;
-    let blockedIps: string[]     = [];
+    let blockedIps: string[]      = [];
     let blockedCountries: string[] = [];
 
     if (license) {
@@ -41,7 +41,6 @@ export async function GET(request: Request) {
       isPremium = sub?.status === 'active' && isNotExpired;
 
       if (isPremium) {
-        // Blocked IPs
         const { data: ips } = await supabase
           .from('wpshield_blocked_ips')
           .select('ip')
@@ -49,7 +48,6 @@ export async function GET(request: Request) {
           .eq('is_active', true);
         if (ips) blockedIps = ips.map(r => r.ip);
 
-        // Blocked countries — was missing, geo blocking was non-functional without this
         const { data: countries } = await supabase
           .from('wpshield_blocked_countries')
           .select('country_code')
@@ -58,38 +56,46 @@ export async function GET(request: Request) {
       }
     }
 
+    // ── Per-site overrides (Stream 3) ─────────────────────────────────────
+    // When site_controls_enabled = true AND the subscription is premium,
+    // the site's own maintenance_mode / away_mode_schedule takes precedence
+    // over the company-level values. When false (the default), the site
+    // inherits company settings exactly as before — fully backward compatible.
+    const { data: siteRow } = await supabase
+      .from('sites')
+      .select('maintenance_mode, away_mode_schedule, site_controls_enabled')
+      .eq('id', auth.site_id)
+      .single();
+
+    const useSiteLevel = (siteRow?.site_controls_enabled === true) && isPremium;
+
+    const maintenanceMode = useSiteLevel
+      ? (siteRow?.maintenance_mode ?? false)
+      : (company?.maintenance_mode ?? false) && isPremium;
+
+    const awayModeSchedule = useSiteLevel
+      ? (siteRow?.away_mode_schedule ?? null)
+      : (company?.away_mode_schedule && isPremium ? company.away_mode_schedule : null);
+
     const now = new Date();
     const config = {
       blocking_enabled:    company?.blocking_enabled    && isPremium,
       blocked_ips:         blockedIps,
       blocked_countries:   blockedCountries,
-      maintenance_mode:    company?.maintenance_mode    && isPremium,
-      away_mode_schedule:  company?.away_mode_schedule  && isPremium ? company.away_mode_schedule : null,
+      maintenance_mode:    maintenanceMode,
+      away_mode_schedule:  awayModeSchedule,
       footer_attribution:  company?.footer_attribution  ?? true,
       is_premium:          isPremium,
-      // RG-18: previously had no timestamp at all, so a captured/cached response could
-      // be replayed indefinitely with nothing on the plugin side able to tell a fresh
-      // config from a stale one. issued_at/expires_at let the plugin reject a response
-      // that's older than its own refresh interval; config_version is a schema marker
-      // so a future field change can be detected by the plugin rather than silently
-      // misread.
+      // Per-site control flag — lets future plugin versions know which mode is active
+      site_controls_enabled: useSiteLevel,
       issued_at:           now.toISOString(),
-      expires_at:           new Date(now.getTime() + 60 * 60 * 1000).toISOString(), // matches the plugin's hourly cron_config_sync interval
+      expires_at:          new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
       config_version:      1,
     };
 
-    // HMAC signature — verified by the WordPress plugin on receipt.
-    // Key = site_token (shared secret), so the dashboard can't be spoofed.
-    //
-    // Signed over configJson (the exact string sent), not a re-serialization of the
-    // `config` object — PHP's json_encode and JS's JSON.stringify don't escape forward
-    // slashes or non-ASCII characters the same way by default, so re-encoding on the
-    // plugin side for verification could produce a different byte sequence even for
-    // semantically identical data. Signing and verifying against one literal string,
-    // shipped alongside the parsed object only for convenience, sidesteps that entirely.
-    const configJson = JSON.stringify(config);
-    const signingKey = request.headers.get('Authorization')?.replace('Bearer ', '') || '';
-    const signature  = crypto
+    const configJson  = JSON.stringify(config);
+    const signingKey  = request.headers.get('Authorization')?.replace('Bearer ', '') || '';
+    const signature   = crypto
       .createHmac('sha256', signingKey)
       .update(configJson)
       .digest('hex');

@@ -2,39 +2,22 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AwayModeSchedule } from "@/types";
-import { verifyCompanyAccess } from "@/lib/auth/verify-company-access";
 
 export async function POST(request: Request) {
-  // 1. Authenticate
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2. Parse body
   const body = await request.json();
-  const { schedule, company_id } = body;
+  const { site_id, schedule } = body as { site_id: string; schedule: AwayModeSchedule };
 
-  if (!company_id) {
-    return NextResponse.json({ error: "company_id is required" }, { status: 400 });
+  if (!site_id) {
+    return NextResponse.json({ error: "site_id is required" }, { status: 400 });
   }
 
-  // 3. Verify tenant ownership (SEC-001)
-  const { allowed, response: denyResponse } = await verifyCompanyAccess(supabase, user.id, company_id);
-  if (!allowed) return denyResponse!;
-
-  // Gate: away mode requires Solo+
-  const { getPlanFeatures } = await import('@/lib/billing/get-plan-features');
-  const features = await getPlanFeatures(supabase, user.id);
-  if (!features.awayMode) {
-    return NextResponse.json(
-      { error: "Away mode requires Solo plan or above. Please upgrade your subscription." },
-      { status: 403 }
-    );
-  }
-
-  // 4. Validate schedule shape
+  // Validate schedule shape
   if (
     typeof schedule.enabled !== "boolean" ||
     typeof schedule.timezone !== "string" ||
@@ -51,12 +34,42 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Times must be in HH:MM format" }, { status: 400 });
   }
 
-  // 5. Write via admin client
+  // Verify ownership
   const admin = createAdminClient();
+  const { data: site } = await admin
+    .from("sites")
+    .select("company_id")
+    .eq("id", site_id)
+    .maybeSingle();
+
+  if (!site) {
+    return NextResponse.json({ error: "Site not found" }, { status: 404 });
+  }
+
+  const { data: profile } = await supabase
+    .from("user_profiles")
+    .select("company_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile) {
+    return NextResponse.json({ error: "Profile not found" }, { status: 401 });
+  }
+
+  const isAdmin     = profile.role === "admin" || profile.role === "super_admin";
+  const ownsCompany = profile.company_id === site.company_id;
+
+  if (!isAdmin && !ownsCompany) {
+    return NextResponse.json({ error: "Access Denied" }, { status: 403 });
+  }
+
   const { error } = await admin
-    .from("companies")
-    .update({ away_mode_schedule: schedule })
-    .eq("company_id", company_id);
+    .from("sites")
+    .update({
+      away_mode_schedule:    schedule,
+      site_controls_enabled: true,
+    })
+    .eq("id", site_id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
