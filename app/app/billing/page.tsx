@@ -7,7 +7,6 @@ import { CheckCircle, Shield, Zap, Building2, Star } from "lucide-react";
 import { getEffectivePrice, formatPrice } from "@/lib/billing/pricing";
 import { CurrencyHint } from "@/components/billing/CurrencyHint";
 
-// Feature lists per plan — matches the feature_* columns in the DB
 const PLAN_FEATURES: Record<string, string[]> = {
   core: [
     "1 WordPress Site",
@@ -65,26 +64,30 @@ const PLAN_ICONS: Record<string, any> = {
   managed_review: CheckCircle,
 };
 
-const BEST_VALUE_PLAN  = 'growth';
-const PLAN_ORDER       = ['core', 'solo', 'growth', 'agency', 'managed_review'];
+const PLAN_ORDER = ['core', 'solo', 'growth', 'agency', 'managed_review'];
+const BEST_VALUE_PLAN = 'growth';
 
 export default async function AppBillingPage() {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: customer } = await supabase
+  // Always use admin client for billing data — user-scoped client hits RLS on
+  // plans (active column) and subscriptions, silently returning empty rows.
+  const admin = createAdminClient();
+
+  const { data: customer } = await admin
     .from("customers")
     .select("id")
     .eq("owner_user_id", user.id)
     .maybeSingle();
 
-  let subscription: any = null;
-  let currentPlan: any  = null;
+  let subscription: any  = null;
+  let currentPlan: any   = null;
   let currentLicense: any = null;
 
   if (customer) {
-    const { data: subData } = await supabase
+    const { data: subData } = await admin
       .from("subscriptions")
       .select("id, status, current_period_end, created_at, plan:plans(id, name, max_sites)")
       .eq("customer_id", customer.id)
@@ -97,8 +100,7 @@ export default async function AppBillingPage() {
       subscription = subData;
       currentPlan  = Array.isArray(subData.plan) ? subData.plan[0] : subData.plan;
 
-      const adminSupabase = createAdminClient();
-      const { data: lic } = await adminSupabase
+      const { data: lic } = await admin
         .from("licenses")
         .select("id, status, key_hash")
         .eq("subscription_id", subData.id)
@@ -107,13 +109,13 @@ export default async function AppBillingPage() {
     }
   }
 
-  const { data: plansRaw } = await supabase
+  // Use admin client to fetch plans — avoids RLS active column issue
+  const { data: plansRaw } = await admin
     .from("plans")
     .select("id, name, price_inr_test, price_inr_live, currency, max_sites, plan_family, billing_interval, is_active")
     .eq("is_active", true)
     .order("price_inr_live", { ascending: true, nullsFirst: true });
 
-  // Sort plans in our defined order
   const plans = (plansRaw ?? []).sort((a, b) => {
     const ai = PLAN_ORDER.indexOf(a.id);
     const bi = PLAN_ORDER.indexOf(b.id);
@@ -137,7 +139,6 @@ export default async function AppBillingPage() {
         )}
       </div>
 
-      {/* Active subscription card */}
       {isActive ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50/50 p-6 space-y-4">
           <div className="flex items-center gap-2">
@@ -177,7 +178,6 @@ export default async function AppBillingPage() {
         </div>
       )}
 
-      {/* Plan cards */}
       <div>
         <h2 className="text-xl font-bold mb-5">Plans</h2>
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
@@ -186,17 +186,16 @@ export default async function AppBillingPage() {
             try { effectivePrice = getEffectivePrice(p); }
             catch { return null; }
 
-            const features   = PLAN_FEATURES[p.id] ?? [];
-            const isCurrent  = currentPlan?.id === p.id && isActive;
-            const isBestVal  = p.id === BEST_VALUE_PLAN;
-            const isFree     = effectivePrice.amount === 0;
-            const isAddon    = p.plan_family === 'addon';
-            const Icon       = PLAN_ICONS[p.id] ?? Shield;
+            const features  = PLAN_FEATURES[p.id] ?? [];
+            const isCurrent = currentPlan?.id === p.id && isActive;
+            const isBestVal = p.id === BEST_VALUE_PLAN;
+            const isFree    = effectivePrice.amount === 0;
+            const isAddon   = p.plan_family === 'addon';
+            const Icon      = PLAN_ICONS[p.id] ?? Shield;
 
             const intervalLabel = p.billing_interval === 'yearly'  ? '/yr'
                                 : p.billing_interval === 'monthly' ? '/mo'
-                                : p.billing_interval === 'free'    ? ''
-                                : '/mo';
+                                : '';
 
             return (
               <div
@@ -209,19 +208,13 @@ export default async function AppBillingPage() {
                 }`}
               >
                 {isBestVal && !isCurrent && (
-                  <div className="absolute -top-3 left-6 bg-[var(--foreground)] text-white text-xs font-bold px-3 py-1 rounded-full">
-                    BEST VALUE
-                  </div>
+                  <div className="absolute -top-3 left-6 bg-[var(--foreground)] text-white text-xs font-bold px-3 py-1 rounded-full">BEST VALUE</div>
                 )}
                 {isCurrent && (
-                  <div className="absolute -top-3 left-6 bg-[var(--brand)] text-white text-xs font-bold px-3 py-1 rounded-full">
-                    CURRENT PLAN
-                  </div>
+                  <div className="absolute -top-3 left-6 bg-[var(--brand)] text-white text-xs font-bold px-3 py-1 rounded-full">CURRENT PLAN</div>
                 )}
-                {isAddon && (
-                  <div className="absolute -top-3 left-6 bg-[var(--surface-subtle)] border border-[var(--border)] text-[var(--muted)] text-xs font-bold px-3 py-1 rounded-full">
-                    ADD-ON
-                  </div>
+                {isAddon && !isCurrent && (
+                  <div className="absolute -top-3 left-6 bg-[var(--surface-subtle)] border border-[var(--border)] text-[var(--muted)] text-xs font-bold px-3 py-1 rounded-full">ADD-ON</div>
                 )}
 
                 <div className="flex items-start justify-between mb-4">
@@ -236,11 +229,10 @@ export default async function AppBillingPage() {
                   </div>
                   <div className="text-right">
                     <div className="text-2xl font-extrabold">
-                      {isFree ? (
-                        <span>Free</span>
-                      ) : (
-                        <>{formatPrice(effectivePrice)}<span className="text-sm text-[var(--muted)] font-normal">{intervalLabel}</span></>
-                      )}
+                      {isFree
+                        ? <span>Free</span>
+                        : <>{formatPrice(effectivePrice)}<span className="text-sm text-[var(--muted)] font-normal">{intervalLabel}</span></>
+                      }
                     </div>
                     {!isFree && <CurrencyHint amountInr={effectivePrice.amount} />}
                   </div>
