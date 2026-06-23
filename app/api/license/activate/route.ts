@@ -87,17 +87,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid site URL' }, { status: 400 });
     }
 
-    // 5. Check if this domain is already active on this license
+    // 5. Check if this domain is already active under this company
     const { data: existingSite } = await supabase
       .from('sites')
-      .select('id, is_active')
-      .eq('license_id', license.id)
+      .select('id, is_active, license_id')
+      .eq('company_id', company_id)
       .eq('normalized_domain', normalized_domain)
       .maybeSingle();
 
     if (existingSite) {
-      if (existingSite.is_active) {
-        // Already active — revoke old tokens and issue a new one
+      if (existingSite.is_active && existingSite.license_id === license.id) {
+        // Already active on this exact license — revoke old tokens and issue a new one
         await supabase.from('site_tokens').update({ revoked: true }).eq('site_id', existingSite.id);
         const rawToken  = crypto.randomBytes(32).toString('hex');
         const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
@@ -106,9 +106,10 @@ export async function POST(request: Request) {
         });
         return NextResponse.json({ success: true, site_token: rawToken, company_id });
       } else {
-        // Previously deactivated — reactivate
+        // Previously deactivated, OR moving from Free to Pro (or changing license)
         await supabase.from('sites').update({
           is_active: true, deactivated_at: null, url: site_url, last_seen_at: new Date().toISOString(),
+          license_id: license.id
         }).eq('id', existingSite.id);
 
         await supabase.from('site_tokens').update({ revoked: true }).eq('site_id', existingSite.id);

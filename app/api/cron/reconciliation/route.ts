@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { Paynimo } from '@/lib/billing/paynimo';
 import { provisionPayment } from '@/lib/billing/provision-payment';
+import { sendEmailViaGraph } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,13 +94,35 @@ export async function GET(request: Request) {
         results.stuckCheckoutsRecovered++;
       } else {
         // Auto-provisioning failed — flag for manual follow-up with error detail
-        await supabase
-          .from('pending_checkouts')
-          .update({ status: 'needs_manual_provisioning' })
-          .eq('id', checkout.id);
+        const { count: attempts } = await supabase
+          .from('webhook_events')
+          .select('id', { count: 'exact', head: true })
+          .eq('provider', 'paynimo')
+          .like('provider_event_id', `reconcile_${checkout.txn_ref}_%`);
+          
+        const retryCount = attempts || 1;
+        
+        if (retryCount >= 3) {
+          await supabase
+            .from('pending_checkouts')
+            .update({ status: 'needs_review' })
+            .eq('id', checkout.id);
+            
+          await sendEmailViaGraph(
+            process.env.MAIL_FROM || 'support@wpshield.com',
+            `WPShield Alert: Manual Provisioning Required for ${checkout.txn_ref}`,
+            `<p>Checkout ID: ${checkout.id}</p><p>Error: ${result.error}</p><p>This checkout has failed auto-provisioning ${retryCount} times and needs manual intervention.</p>`
+          );
+        } else {
+          await supabase
+            .from('pending_checkouts')
+            .update({ status: 'needs_manual_provisioning' })
+            .eq('id', checkout.id);
+        }
+
         results.stuckCheckoutsStillPending++;
         console.error(
-          `[Reconciliation] Auto-provisioning failed for ${checkout.txn_ref}: ${result.error}`
+          `[Reconciliation] Auto-provisioning failed for ${checkout.txn_ref} (Attempt ${retryCount}): ${result.error}`
         );
       }
 

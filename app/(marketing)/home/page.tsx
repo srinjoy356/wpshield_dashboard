@@ -834,19 +834,6 @@ export default function LandingPage() {
               <Link href="/login?redirect=/app/billing" className="btn-primary" style={{ width: "100%", justifyContent: "center", fontSize: 14 }}>Get Started</Link>
             </div>
           </div>
-
-          {/* Add-on banner */}
-          <div className="addon-banner" style={{ marginTop: 64, width: "100%", background: "linear-gradient(135deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.3))", backdropFilter: "blur(16px) saturate(110%)", border: "1px solid rgba(255, 255, 255, 0.65)", borderRadius: 16, padding: "24px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, boxShadow: "0 10px 30px rgba(9, 20, 19, 0.03), inset 0 1px 1px 0 rgba(255, 255, 255, 0.7)" }}>
-            <div>
-              <span style={{ fontSize: 8, background: C.sage, color: "#ffffff", padding: "3px 8px", borderRadius: 10, fontWeight: 800, letterSpacing: "0.5px" }}>ADD-ON EXCLUSIVE</span>
-              <h4 style={{ fontSize: 16, fontWeight: 800, color: C.dark, margin: "8px 0 4px", fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Managed Security Review</h4>
-              <p style={{ fontSize: 13, color: C.sage, margin: 0 }}>Get expert manual review and threat hunting for your critical sites every month.</p>
-            </div>
-            <div style={{ textAlign: "right", flexShrink: 0 }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: C.primary, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{isIndia ? "₹1,499 / mo / site" : "$19 / mo / site"}</div>
-              <span style={{ fontSize: 11, color: C.sage }}>Billed monthly</span>
-            </div>
-          </div>
         </div>
       </section>
       <Footer />

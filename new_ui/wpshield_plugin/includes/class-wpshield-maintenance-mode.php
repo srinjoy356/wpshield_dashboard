@@ -17,10 +17,17 @@ class WPShield_Maintenance_Mode {
     }
 
     public function maybe_block_frontend() {
-        // Skip admin, cron, REST API
+        // Skip admin, cron
         if ( is_admin() || wp_doing_cron() || ( defined( 'REST_REQUEST' ) && REST_REQUEST ) ) {
             return;
         }
+
+        // Reliably detect REST requests during 'init' (before REST_REQUEST is defined)
+        $rest_prefix = function_exists('rest_get_url_prefix') ? rest_get_url_prefix() : 'wp-json';
+        if ( isset( $_SERVER['REQUEST_URI'] ) && false !== strpos( $_SERVER['REQUEST_URI'], '/' . $rest_prefix ) ) {
+            return;
+        }
+
         // Skip login page
         if ( isset( $_SERVER['REQUEST_URI'] ) && false !== strpos( $_SERVER['REQUEST_URI'], 'wp-login.php' ) ) {
             return;

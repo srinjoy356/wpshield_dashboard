@@ -64,14 +64,19 @@ export async function POST(req: Request) {
     });
 
     const resultText = await wpResponse.text();
+    console.log("WP Response Status:", wpResponse.status);
+    console.log("WP Response Text:", resultText);
+
     let result;
     try {
       result = JSON.parse(resultText);
     } catch {
+      console.error("Failed to parse WP response as JSON.");
       return NextResponse.json({ error: "Invalid response from WordPress site", details: resultText }, { status: 500 });
     }
 
     if (!wpResponse.ok || !result.success) {
+      console.error("WP update failed. Result:", result);
       return NextResponse.json({
         error: result.message || "Failed to update plugin on the site.",
         details: result

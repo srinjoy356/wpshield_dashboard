@@ -206,13 +206,30 @@ class WPShield_Receiver {
                     require_once ABSPATH . 'wp-admin/includes/file.php';
                 }
                 
-                include_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
-                
+                require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+                require_once ABSPATH . 'wp-admin/includes/plugin.php';
+
                 if ( defined( 'DISALLOW_FILE_MODS' ) && DISALLOW_FILE_MODS ) {
                     return new WP_Error( 'file_mods_disallowed', 'File modifications are disabled on this site.', array( 'status' => 403 ) );
                 }
 
-                $upgrader = new Plugin_Upgrader( new Automatic_Upgrader_Skin() );
+                $current = get_site_transient( 'update_plugins' );
+                if ( ! isset( $current->response[ $plugin_slug ] ) ) {
+                    return new WP_Error( 'not_in_transient', 'Plugin slug ' . $plugin_slug . ' not found in update_plugins transient. Are you sure an update is available?', array( 'status' => 400 ) );
+                }
+
+                // Check filesystem connectivity before upgrading
+                if ( ! function_exists( 'request_filesystem_credentials' ) ) {
+                    require_once ABSPATH . 'wp-admin/includes/file.php';
+                }
+                $creds = request_filesystem_credentials( '', '', false, false, null );
+                if ( ! WP_Filesystem( $creds ) ) {
+                    return new WP_Error( 'fs_unavailable', 'Direct filesystem access is not available.', array( 'status' => 500 ) );
+                }
+
+                // WP_Ajax_Upgrader_Skin is safer for REST requests
+                $skin = new WP_Ajax_Upgrader_Skin();
+                $upgrader = new Plugin_Upgrader( $skin );
                 $result = $upgrader->upgrade( $plugin_slug );
 
                 if ( is_wp_error( $result ) ) {
@@ -220,8 +237,11 @@ class WPShield_Receiver {
                 }
 
                 if ( $result === false ) {
-                    return new WP_Error( 'update_failed', 'Plugin update failed.', array( 'status' => 500 ) );
+                    return new WP_Error( 'update_failed', 'Plugin upgrader returned false without an error message.', array( 'status' => 500 ) );
                 }
+
+                // Force a fresh inventory snapshot so the dashboard immediately sees the plugin as updated
+                do_action( 'wpshield_force_snapshot' );
 
                 return rest_ensure_response( array(
                     'success' => true,

@@ -15,9 +15,9 @@ class WPShield_Collector_Health {
     }
 
     public function maybe_snapshot() {
-        // Throttle to once per 24h.
+        // Throttle to once per 12h.
         $last = (int) get_option( 'wpshield_last_health_snapshot', 0 );
-        if ( ( time() - $last ) < DAY_IN_SECONDS ) {
+        if ( ( time() - $last ) < 12 * HOUR_IN_SECONDS ) {
             return;
         }
         $this->run_snapshot();

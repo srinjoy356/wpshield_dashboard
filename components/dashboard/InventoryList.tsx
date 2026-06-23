@@ -99,18 +99,21 @@ export function InventoryList({ snapshot, siteId, autoUpdatePlugins }: Inventory
                           size="sm"
                           disabled={updatingPlugins[p.slug!]}
                           onClick={async () => {
-                            if (!siteId || !p.slug) return;
+                            if (!siteId || !p.file) return;
                             setUpdatingPlugins((prev) => ({ ...prev, [p.slug!]: true }));
                             try {
                               const res = await fetch("/api/sites/update-plugin", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ site_id: siteId, plugin_slug: p.slug }),
+                                body: JSON.stringify({ site_id: siteId, plugin_slug: p.file }),
                               });
-                              if (!res.ok) throw new Error("Update failed");
+                              if (!res.ok) {
+                                const errData = await res.json().catch(() => ({}));
+                                throw new Error(errData.error || "Update failed");
+                              }
                               toast({ title: `${p.name} update triggered` });
-                            } catch (err) {
-                              toast({ title: `Failed to update ${p.name}`, variant: "destructive" });
+                            } catch (err: any) {
+                              toast({ title: `Failed to update ${p.name}`, description: err.message, variant: "destructive" });
                             } finally {
                               setUpdatingPlugins((prev) => ({ ...prev, [p.slug!]: false }));
                             }

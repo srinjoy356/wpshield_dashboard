@@ -69,7 +69,7 @@ export async function GET(req: Request) {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${tokenData.token_hash}`,
             },
-            body: JSON.stringify({ action: "update_plugin", plugin_slug: plugin.slug }),
+            body: JSON.stringify({ action: "update_plugin", plugin_slug: plugin.file }),
             signal: AbortSignal.timeout(30000),
           });
 

@@ -49,7 +49,6 @@ const clientNav: NavItem[] = [
   { label: "Inventory", href: "/app/inventory", icon: Package },
   { label: "Firewall", href: "/app/firewall", icon: ShieldAlert },
   { label: "Hardening", href: "/app/hardening", icon: Shield },
-  { label: "My Services", href: "/app/services", icon: CreditCard },
   { label: "Billing", href: "/app/billing", icon: CreditCard },
   { label: "Reports", href: "/app/reports", icon: FileDown },
   { label: "Alerts", href: "/app/alerts", icon: Bell },
@@ -271,7 +270,7 @@ export default function ClientLayout({
             </div>
           )}
 
-          {/* Theme toggle */}
+          {/* Theme toggle (Disabled per request)
           {mounted && (
             <button
               onClick={toggleTheme}
@@ -280,7 +279,7 @@ export default function ClientLayout({
               {theme === "dark" ? <Sun className="h-4 w-4 shrink-0" strokeWidth={1.5} /> : <Moon className="h-4 w-4 shrink-0" strokeWidth={1.5} />}
               {expanded && <span className="whitespace-nowrap">{theme === "dark" ? "Light mode" : "Dark mode"}</span>}
             </button>
-          )}
+          )} */}
 
           <button
             onClick={handleLogout}

@@ -47,13 +47,6 @@ const PLAN_FEATURES: Record<string, string[]> = {
     "Agency Client Management",
     "Dedicated Support",
   ],
-  managed_review: [
-    "Monthly analyst security review",
-    "Plugin & hardening audit",
-    "Suspicious login review",
-    "Written PDF report",
-    "Per-site add-on (requires existing plan)",
-  ],
 };
 
 const PLAN_ICONS: Record<string, any> = {
@@ -61,10 +54,9 @@ const PLAN_ICONS: Record<string, any> = {
   solo:           Star,
   growth:         Zap,
   agency:         Building2,
-  managed_review: CheckCircle,
 };
 
-const PLAN_ORDER = ['core', 'solo', 'growth', 'agency', 'managed_review'];
+const PLAN_ORDER = ['core', 'solo', 'growth', 'agency'];
 const BEST_VALUE_PLAN = 'growth';
 
 export default async function AppBillingPage() {

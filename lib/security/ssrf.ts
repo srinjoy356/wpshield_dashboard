@@ -13,6 +13,7 @@ const FORBIDDEN_IPS = [
 ];
 
 function isForbiddenIP(ip: string): boolean {
+  if (process.env.NODE_ENV === 'development') return false;
   if (ip === '::1') return true;
   return FORBIDDEN_IPS.some(regex => regex.test(ip));
 }

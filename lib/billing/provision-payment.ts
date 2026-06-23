@@ -268,6 +268,23 @@ export async function provisionPayment(
       newLicenseId = insertedLicense?.id ?? null;
     }
 
+    const activeLicenseId = newLicenseId || existingLicense?.id;
+    if (activeLicenseId) {
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('company_id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profile?.company_id) {
+        await supabase
+          .from('sites')
+          .update({ license_id: activeLicenseId })
+          .eq('company_id', profile.company_id)
+          .eq('status', 'active');
+      }
+    }
+
     // ── 12. Send email ────────────────────────────────────────────────────
     const { data: userData } = await supabase.auth.admin.getUserById(userId);
     const email = userData?.user?.email;

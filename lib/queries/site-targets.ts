@@ -47,7 +47,21 @@ export async function getCheckTargets(
   }
 
   if (activeSites && activeSites.length > 0) {
-    return activeSites.map((s) => ({
+    // Deduplicate by URL to prevent duplicate dropdown entries and duplicate cron runs
+    const uniqueSitesMap = new Map<string, any>();
+    for (const s of activeSites) {
+      if (!uniqueSitesMap.has(s.url)) {
+        uniqueSitesMap.set(s.url, s);
+      } else {
+        // If it exists, prefer the one with a more recent last_seen_at
+        const existing = uniqueSitesMap.get(s.url);
+        if (s.last_seen_at && (!existing.last_seen_at || new Date(s.last_seen_at) > new Date(existing.last_seen_at))) {
+          uniqueSitesMap.set(s.url, s);
+        }
+      }
+    }
+
+    return Array.from(uniqueSitesMap.values()).map((s) => ({
       site_id: s.id as string,
       url: s.url as string,
       last_seen_at: (s.last_seen_at as string | null) ?? null,

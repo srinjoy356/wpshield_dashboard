@@ -10,8 +10,9 @@ import { FirewallPageContent } from "@/components/dashboard/FirewallPageContent"
 export default async function ClientFirewallPage({
   searchParams,
 }: {
-  searchParams: { site?: string };
+  searchParams: Promise<{ site?: string }>;
 }) {
+  const resolvedSearchParams = await searchParams;
   const supabase = createClient();
   const profile  = await getCurrentProfile(supabase);
   if (!profile) redirect("/login");
@@ -25,8 +26,6 @@ export default async function ClientFirewallPage({
 
   const admin = createAdminClient();
 
-  // Load sites WITH license_id so FirewallPageContent can determine
-  // per-site premium status client-side (since site selection is client state)
   const { data: sitesRaw } = company
     ? await admin
         .from("sites")
@@ -38,42 +37,61 @@ export default async function ClientFirewallPage({
 
   const sites = sitesRaw ?? [];
 
-  // Build premiumSiteIds on the server where we can query licenses/subscriptions
-  // Pass it to the client so FirewallPageContent can gate per selected site
-  const premiumSiteIds: string[] = [];
-  const licenseIds = sites.map(s => s.license_id).filter(Boolean) as string[];
+  // Determine which sites are premium.
+  // Strategy: a site is premium if it has a license_id that links to an
+  // active, non-expired subscription — OR if the user's account subscription
+  // is active AND the site belongs to their company (catches the case where
+  // license_id on the site row is stale after a plan upgrade).
+  //
+  // The source of truth is: does this company have an active paid subscription?
+  // If yes, ALL active sites under that company are premium.
+  // The per-site license_id is used for the plugin's activation flow, not for
+  // dashboard feature gating.
 
-  if (licenseIds.length > 0) {
-    const { data: licenses } = await admin
-      .from("licenses")
-      .select("id, subscription_id, status")
-      .in("id", licenseIds)
-      .eq("status", "active");
+  const companyHasPremium = userFeatures.isActive;
 
-    if (licenses && licenses.length > 0) {
-      const subIds = licenses.map(l => l.subscription_id).filter(Boolean) as string[];
-      const { data: subs } = await admin
-        .from("subscriptions")
-        .select("id, status, current_period_end")
-        .in("id", subIds)
+  // Sites that have their own license explicitly linked (used as a secondary check)
+  const siteWithLicenseIds = new Set<string>();
+  if (!companyHasPremium) {
+    // Only do the per-license check if the account-level check didn't pass
+    const licenseIds = sites.map(s => s.license_id).filter(Boolean) as string[];
+    if (licenseIds.length > 0) {
+      const { data: licenses } = await admin
+        .from("licenses")
+        .select("id, subscription_id, status")
+        .in("id", licenseIds)
         .eq("status", "active");
 
-      const activeSubs = new Set(
-        (subs ?? [])
-          .filter(s => new Date(s.current_period_end) > new Date())
-          .map(s => s.id)
-      );
+      if (licenses && licenses.length > 0) {
+        const subIds = licenses.map(l => l.subscription_id).filter(Boolean) as string[];
+        const { data: subs } = await admin
+          .from("subscriptions")
+          .select("id, status, current_period_end")
+          .in("id", subIds)
+          .eq("status", "active");
 
-      for (const license of licenses) {
-        if (activeSubs.has(license.subscription_id)) {
-          const site = sites.find(s => s.license_id === license.id);
-          if (site) premiumSiteIds.push(site.id);
+        const activeSubs = new Set(
+          (subs ?? [])
+            .filter(s => new Date(s.current_period_end) > new Date())
+            .map(s => s.id)
+        );
+
+        for (const license of licenses) {
+          if (activeSubs.has(license.subscription_id)) {
+            const site = sites.find(s => s.license_id === license.id);
+            if (site) siteWithLicenseIds.add(site.id);
+          }
         }
       }
     }
   }
 
-  // Strip license_id before sending to client component
+  // A site is premium if the company has an active subscription OR
+  // the site has its own active license
+  const premiumSiteIds: string[] = companyHasPremium
+    ? sites.map(s => s.id)                           // all sites premium
+    : sites.filter(s => siteWithLicenseIds.has(s.id)).map(s => s.id);
+
   const sitesForClient = sites.map(({ license_id, ...rest }) => rest);
 
   return (
@@ -81,15 +99,13 @@ export default async function ClientFirewallPage({
       profile={profile}
       company={company}
       sites={sitesForClient}
-      selectedSiteId={searchParams.site ?? null}
-      // User-level feature flags (what their plan allows)
+      selectedSiteId={resolvedSearchParams.site ?? null}
       userFeatures={{
         ipBlocking:      userFeatures.ipBlocking,
         geoBlocking:     userFeatures.geoBlocking,
         awayMode:        userFeatures.awayMode,
         maintenanceMode: userFeatures.maintenanceMode,
       }}
-      // Which site IDs have an active paid license
       premiumSiteIds={premiumSiteIds}
     />
   );

@@ -43,7 +43,6 @@ const adminNav: NavItem[] = [
   { label: "Billing", href: "/admin/billing", icon: CreditCard },
   { label: "Alerts", href: "/admin/alerts", icon: Bell },
   { label: "Activity Logs", href: "/admin/activity", icon: Activity },
-  { label: "Managed Services", href: "/admin/managed-services", icon: FileSignature },
   { label: "Analyst Reviews", href: "/admin/reviews", icon: FileSignature },
   { label: "Plugin Releases", href: "/admin/plugin", icon: Package },
   { label: "Settings", href: "/admin/settings", icon: Settings },
@@ -221,7 +220,7 @@ export default function AdminLayout({
             </div>
           )}
 
-          {/* Theme toggle */}
+          {/* Theme toggle (Disabled per request)
           {mounted && (
             <button
               onClick={toggleTheme}
@@ -230,7 +229,7 @@ export default function AdminLayout({
               {theme === "dark" ? <Sun className="h-4 w-4 shrink-0" strokeWidth={1.5} /> : <Moon className="h-4 w-4 shrink-0" strokeWidth={1.5} />}
               {expanded && <span className="whitespace-nowrap">{theme === "dark" ? "Light mode" : "Dark mode"}</span>}
             </button>
-          )}
+          )} */}
 
           <button
             onClick={handleLogout}
