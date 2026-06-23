@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Info, Clock, Globe, Plus, X } from "lucide-react";
 import { AwayModeSchedule, Company } from "@/types";
@@ -134,16 +134,27 @@ export function AwayModeBuilder({ company, site }: Props) {
 
   const isPerSite = !!site;
 
-  // Initialise: per-site takes the site's own schedule; company-level takes company's
-  const initialSchedule = isPerSite
-    ? (site!.site_controls_enabled && site!.away_mode_schedule
-        ? site!.away_mode_schedule
-        : company.away_mode_schedule ?? defaultSchedule())
-    : (company.away_mode_schedule ?? defaultSchedule());
+  // Derive the correct schedule from DB data for the current site/company.
+  function resolveSchedule(): AwayModeSchedule {
+    if (isPerSite) {
+      return site!.site_controls_enabled && site!.away_mode_schedule
+        ? site!.away_mode_schedule   // site has its own override
+        : company.away_mode_schedule ?? defaultSchedule(); // inheriting company default
+    }
+    return company.away_mode_schedule ?? defaultSchedule();
+  }
 
-  const [schedule, setSchedule] = useState<AwayModeSchedule>(initialSchedule);
+  const [schedule, setSchedule] = useState<AwayModeSchedule>(resolveSchedule);
   const [ipInput, setIpInput]   = useState("");
   const [saving, setSaving]     = useState(false);
+
+  // When the user picks a different site from the dropdown, reset to that site's
+  // actual DB values. Without this, the schedule state stays from the previous site.
+  useEffect(() => {
+    setSchedule(resolveSchedule());
+    setIpInput("");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site?.id, site?.site_controls_enabled, site?.away_mode_schedule]);
 
   function toggleDay(day: number) {
     setSchedule((prev) => ({

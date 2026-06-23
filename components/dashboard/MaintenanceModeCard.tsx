@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { AlertTriangle } from "lucide-react";
 import { Company } from "@/types";
@@ -14,36 +14,35 @@ interface SiteOverride {
 
 interface Props {
   company: Company;
-  /** When provided, controls per-site maintenance mode for this site only */
   site?: SiteOverride;
 }
 
-/**
- * MaintenanceModeCard
- *
- * Two modes:
- * - Company mode (site prop absent): toggles companies.maintenance_mode,
- *   which applies to ALL sites of this company that don't have per-site
- *   controls enabled. Original behaviour, fully backward compatible.
- *
- * - Per-site mode (site prop present): toggles sites.maintenance_mode for
- *   that site only, and sets sites.site_controls_enabled = true, so this
- *   site stops inheriting the company-level setting.
- *
- * Force Sync has been moved to <ForceSyncButton> and should be placed
- * at the page level so it applies to all features, not just maintenance mode.
- */
 export function MaintenanceModeCard({ company, site }: Props) {
   const { toast } = useToast();
+  const isPerSite = !!site;
 
-  const initialEnabled = site
-    ? (site.site_controls_enabled ? site.maintenance_mode : company.maintenance_mode ?? false)
-    : (company.maintenance_mode ?? false);
+  // Derive the correct initial value from DB data:
+  // - Per-site with its own controls: use site.maintenance_mode
+  // - Per-site inheriting: use company.maintenance_mode (what it currently shows)
+  // - Company-wide: use company.maintenance_mode
+  function resolveEnabled() {
+    if (isPerSite) {
+      return site!.site_controls_enabled
+        ? site!.maintenance_mode          // site has its own override — show it
+        : (company.maintenance_mode ?? false); // inheriting — show what it's inheriting
+    }
+    return company.maintenance_mode ?? false;
+  }
 
-  const [enabled, setEnabled] = useState(initialEnabled);
+  const [enabled, setEnabled] = useState(resolveEnabled);
   const [loading, setLoading] = useState(false);
 
-  const isPerSite = !!site;
+  // When the user picks a different site from the dropdown, re-derive from DB data.
+  // Without this, useState holds the first site's value even after the prop changes.
+  useEffect(() => {
+    setEnabled(resolveEnabled());
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site?.id, site?.maintenance_mode, site?.site_controls_enabled, company.maintenance_mode]);
 
   async function handleToggle(newValue: boolean) {
     setLoading(true);
@@ -86,27 +85,26 @@ export function MaintenanceModeCard({ company, site }: Props) {
     <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-base font-medium text-[var(--foreground)]">
-            Maintenance Mode
-            {isPerSite && (
-              <span className="ml-2 text-xs font-normal text-[var(--muted)]">
-                — this site only
-              </span>
-            )}
-          </h3>
           <p className="mt-1 text-sm text-[var(--muted)]">
             {isPerSite
-              ? `Show a branded maintenance page to all non-admin visitors on ${site!.url}. Other sites are unaffected.`
-              : "Show a branded maintenance page to all non-admin visitors. Logged-in administrators bypass it automatically."}
+              ? `Show a maintenance page to all non-admin visitors on ${site!.url}.`
+              : "Show a maintenance page to all non-admin visitors across all your sites."}
           </p>
           {isPerSite && !site!.site_controls_enabled && (
-            <p className="mt-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
-              Currently inheriting company-wide setting. Toggling will enable per-site control.
+            <p className="mt-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded px-2 py-1 inline-block">
+              Currently inheriting company-wide setting
+              ({company.maintenance_mode ? "ON" : "OFF"}).
+              Toggling will create a per-site override.
+            </p>
+          )}
+          {isPerSite && site!.site_controls_enabled && (
+            <p className="mt-2 text-xs text-[var(--muted)] bg-[var(--surface-subtle)] border border-[var(--border)] rounded px-2 py-1 inline-block">
+              Using site-specific setting (not company default).
             </p>
           )}
         </div>
 
-        {/* Toggle switch */}
+        {/* Toggle */}
         <button
           role="switch"
           aria-checked={enabled}
@@ -124,23 +122,24 @@ export function MaintenanceModeCard({ company, site }: Props) {
         </button>
       </div>
 
-      {/* Status text */}
+      {/* Live status */}
       <p className="mt-3 text-sm text-[var(--muted)]">
         Status:{" "}
         <span className={enabled ? "font-medium text-red-500" : "text-[var(--foreground)]"}>
-          {enabled ? "ON — Site is in maintenance mode" : "OFF — Site is live"}
+          {enabled ? "ON — Maintenance page is showing" : "OFF — Site is live"}
         </span>
       </p>
 
-      {/* Warning banner when ON */}
       {enabled && (
         <div className="mt-4 flex items-start gap-3 rounded-md border border-red-200 bg-red-50 p-4">
           <AlertTriangle className="h-5 w-5 shrink-0 text-red-500 mt-0.5" />
           <p className="text-sm text-red-700">
             <strong>
-              {isPerSite ? `${site!.url} is currently in maintenance mode.` : "Your site is currently in maintenance mode."}
+              {isPerSite
+                ? `${site!.url} is in maintenance mode.`
+                : "Your sites are in maintenance mode."}
             </strong>{" "}
-            Visitors cannot access it. Remember to turn this off when your maintenance work is complete.
+            Visitors cannot access the site. Turn this off when done.
           </p>
         </div>
       )}
