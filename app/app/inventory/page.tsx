@@ -11,6 +11,7 @@ import { VulnerabilitiesList } from "@/components/dashboard/VulnerabilitiesList"
 import { Package, ShieldAlert } from "lucide-react";
 import { redirect } from "next/navigation";
 import { SiteSwitcher } from "@/components/dashboard/SiteSwitcher";
+import { AutoUpdateToggle } from "@/components/dashboard/AutoUpdateToggle";
 
 interface Props {
   searchParams: Promise<{ site?: string }>;
@@ -36,7 +37,7 @@ export default async function InventoryPage({ searchParams }: Props) {
 
   const { data: company } = await supabase
     .from("companies")
-    .select("site_url")
+    .select("site_url, auto_update_plugins")
     .eq("company_id", companyId)
     .single();
 
@@ -84,7 +85,10 @@ export default async function InventoryPage({ searchParams }: Props) {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Site Inventory" subtitle={`${selectedTarget.url} · Asset Management`} />
+      <div className="flex justify-between items-center">
+        <PageHeader title="Site Inventory" subtitle={`${selectedTarget.url} · Asset Management`} />
+        <AutoUpdateToggle companyId={companyId} initialValue={!!company?.auto_update_plugins} />
+      </div>
 
       {targets.length > 1 && (
         <SiteSwitcher
@@ -136,7 +140,11 @@ export default async function InventoryPage({ searchParams }: Props) {
             </div>
           </div>
 
-          <InventoryList snapshot={snapshot} />
+          <InventoryList 
+            snapshot={snapshot} 
+            siteId={selectedTarget.site_id} 
+            autoUpdatePlugins={!!company?.auto_update_plugins} 
+          />
 
           <hr className="border-[var(--border)] my-8" />
 

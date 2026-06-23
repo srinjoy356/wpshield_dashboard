@@ -10,6 +10,7 @@ import { OverviewCharts } from "@/components/dashboard/OverviewCharts";
 import { Zap, Bell, Activity, Clock, Swords, KeyRound, FileSearch, Package, Shield } from "lucide-react";
 import { TimeSeriesPoint, SeverityCount } from "@/types";
 import { createClient } from "@/lib/supabase/client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface RecentEvent {
   id: string;
@@ -72,6 +73,7 @@ export function ClientOverviewContent({
   const [sitesTotal, setSitesTotal] = useState(sitesSummary.total);
 
   const [liveEvents, setLiveEvents] = useState<RecentEvent[]>(recentEvents);
+  const [selectedEvent, setSelectedEvent] = useState<RecentEvent | null>(null);
 
   // Recomputes the same worst-case-wins rollup used on first load — any update to
   // a site's status (or, for legacy companies with no real sites yet, the company
@@ -286,7 +288,7 @@ export function ClientOverviewContent({
           deltaType="neutral"
           icon={Activity}
         />
-        <Link href="/app/hardening" className="block group">
+        <Link href="/app/hardening?from=overview" className="block group">
           <StatCard
             label="Hardening Score"
             value={
@@ -346,7 +348,8 @@ export function ClientOverviewContent({
             liveEvents.map((e) => (
               <div
                 key={e.id}
-                className="flex items-center gap-3 rounded-lg p-3 hover:bg-[var(--surface-subtle)]"
+                onClick={() => setSelectedEvent(e)}
+                className="flex items-center gap-3 rounded-lg p-3 hover:bg-[var(--surface-subtle)] cursor-pointer transition-colors"
               >
                 <SeverityBadge severity={e.severity as any} />
                 <span className="text-sm uppercase font-medium text-[var(--muted)]">
@@ -364,6 +367,42 @@ export function ClientOverviewContent({
           )}
         </div>
       </div>
+
+      <Dialog open={!!selectedEvent} onOpenChange={(open) => !open && setSelectedEvent(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Event Details</DialogTitle>
+          </DialogHeader>
+          {selectedEvent && (
+            <div className="space-y-4 pt-4">
+              <div className="flex items-center gap-2">
+                <SeverityBadge severity={selectedEvent.severity as any} />
+                <span className="text-sm uppercase font-medium text-[var(--muted)]">{selectedEvent.label}</span>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--muted)] mb-1">Time</p>
+                <p className="text-sm"><TimeCell dateStr={selectedEvent.occurred_at} /></p>
+              </div>
+              {selectedEvent.site_url && (
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-[var(--muted)] mb-1">Site</p>
+                  <p className="text-sm">{selectedEvent.site_url}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--muted)] mb-1">Type</p>
+                <p className="text-sm capitalize">{selectedEvent.type}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wider text-[var(--muted)] mb-1">Details</p>
+                <div className="bg-[var(--surface-subtle)] p-3 rounded-md text-sm font-mono whitespace-pre-wrap break-all">
+                  {selectedEvent.detail}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Quick actions */}
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">

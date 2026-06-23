@@ -43,6 +43,7 @@ export interface Company {
   // Srinjoy: added fields for agency white-labeling (Phase 5)
   whitelabel_logo_url?: string | null;
   whitelabel_agency_name?: string | null;
+  auto_update_plugins?: boolean;
   whitelabel_footer_text?: string | null;
 }
 

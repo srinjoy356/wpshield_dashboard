@@ -5,14 +5,21 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search } from "lucide-react";
 import { InventorySnapshotView } from "@/types";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface InventoryListProps {
   snapshot: InventorySnapshotView | null;
+  siteId: string | null;
+  autoUpdatePlugins?: boolean;
 }
 
-export function InventoryList({ snapshot }: InventoryListProps) {
+export function InventoryList({ snapshot, siteId, autoUpdatePlugins }: InventoryListProps) {
   const [pluginSearch, setPluginSearch] = useState("");
   const [themeSearch, setThemeSearch] = useState("");
+  const [updatingPlugins, setUpdatingPlugins] = useState<Record<string, boolean>>({});
+  const { toast } = useToast();
 
   const plugins = snapshot?.plugins ?? [];
   const themes = snapshot?.themes ?? [];
@@ -82,10 +89,36 @@ export function InventoryList({ snapshot }: InventoryListProps) {
                     <td className="px-6 py-3 text-sm">
                       {!p.update_pending ? (
                         <span className="text-[var(--success)] font-medium">Up to date</span>
-                      ) : (
+                      ) : autoUpdatePlugins ? (
                         <span className="text-[var(--warning)] font-medium">
-                          v{p.new_version || "—"} available
+                          v{p.new_version || "—"} will auto-update
                         </span>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={updatingPlugins[p.slug!]}
+                          onClick={async () => {
+                            if (!siteId || !p.slug) return;
+                            setUpdatingPlugins((prev) => ({ ...prev, [p.slug!]: true }));
+                            try {
+                              const res = await fetch("/api/sites/update-plugin", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ site_id: siteId, plugin_slug: p.slug }),
+                              });
+                              if (!res.ok) throw new Error("Update failed");
+                              toast({ title: `${p.name} update triggered` });
+                            } catch (err) {
+                              toast({ title: `Failed to update ${p.name}`, variant: "destructive" });
+                            } finally {
+                              setUpdatingPlugins((prev) => ({ ...prev, [p.slug!]: false }));
+                            }
+                          }}
+                        >
+                          {updatingPlugins[p.slug!] && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                          Update to v{p.new_version}
+                        </Button>
                       )}
                     </td>
                   </tr>

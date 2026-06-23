@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { Button } from "@/components/ui/button";
 import { SiteSwitcher } from "@/components/dashboard/SiteSwitcher";
-import { Shield, ChevronDown, ChevronUp, Loader2, CheckCircle2, XCircle, HelpCircle, Lock, ShieldAlert, Puzzle, Activity, HeartPulse, FileWarning } from "lucide-react";
+import { Shield, ChevronDown, ChevronUp, Loader2, CheckCircle2, XCircle, HelpCircle, Lock, ShieldAlert, Puzzle, Activity, HeartPulse, FileWarning, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 interface HardeningResult {
   check_key: string;
@@ -97,6 +99,8 @@ export function HardeningContent({ companyId, sites }: HardeningContentProps) {
   const [selectedSiteIndex, setSelectedSiteIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const searchParams = useSearchParams();
+  const fromOverview = searchParams.get("from") === "overview";
 
   const supabase = useMemo(() => createClient(), []);
 
@@ -368,6 +372,13 @@ export function HardeningContent({ companyId, sites }: HardeningContentProps) {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
+      {fromOverview && (
+        <div>
+          <Button variant="ghost" size="sm" asChild className="-ml-3 text-[var(--muted)] hover:text-[var(--foreground)]">
+            <Link href="/app"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard</Link>
+          </Button>
+        </div>
+      )}
       <PageHeader
         title="Security Hardening"
         subtitle={`${current?.site_url || companyId} · Vulnerability Audit`}
