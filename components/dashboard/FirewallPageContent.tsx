@@ -80,10 +80,10 @@ export function FirewallPageContent({
 
   const effectiveFeatures: FeatureFlags = userFeatures
     ? {
-        maintenanceMode: base.maintenanceMode,           // always available
-        ipBlocking:      base.ipBlocking,                // company-wide, uses account plan
-        geoBlocking:     base.geoBlocking,               // company-wide, uses account plan
-        awayMode:        base.awayMode && selectedSiteIsPremium, // per-site premium check
+        maintenanceMode: base.maintenanceMode,                          // all plans
+        ipBlocking:      base.ipBlocking      && selectedSiteIsPremium, // Solo+
+        geoBlocking:     base.geoBlocking     && selectedSiteIsPremium, // Solo+
+        awayMode:        base.awayMode        && selectedSiteIsPremium, // Solo+
       }
     : (features ?? DEFAULT_FEATURES);
 
