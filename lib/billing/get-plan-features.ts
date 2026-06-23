@@ -1,13 +1,8 @@
 /**
- * get-plan-features.ts
+ * get-plan-features.ts — v3 with diagnostic logging
  *
- * Server-side helper — resolves the current user's plan and returns their
- * feature entitlements.
- *
- * Uses the ADMIN client deliberately so RLS on plans/subscriptions/customers
- * never silently filters rows and causes a false fallback to Core features.
- * This function is only ever called from server components and API routes —
- * never from the browser — so bypassing RLS here is safe and correct.
+ * Uses the ADMIN client deliberately so RLS never silently filters rows.
+ * Server-only. Never import in client components.
  */
 
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -60,21 +55,20 @@ export async function getPlanFeatures(
   _unusedUserScopedClient: unknown,
   userId: string,
 ): Promise<PlanFeatures> {
-  // Always use admin client — user-scoped client is subject to RLS which can
-  // silently filter plan rows (active column mismatch) causing false Core fallback.
+  console.log('[getPlanFeatures] called for userId:', userId);
+
   const supabase = createAdminClient();
 
-  // 1. Find customer
-  const { data: customer } = await supabase
+  const { data: customer, error: custErr } = await supabase
     .from('customers')
     .select('id')
     .eq('owner_user_id', userId)
     .maybeSingle();
 
+  console.log('[getPlanFeatures] customer:', customer?.id ?? null, 'err:', custErr?.message ?? null);
   if (!customer) return FREE_FEATURES;
 
-  // 2. Find active subscription + plan features in one query
-  const { data: sub } = await supabase
+  const { data: sub, error: subErr } = await supabase
     .from('subscriptions')
     .select(`
       id, status, current_period_end, plan_id,
@@ -100,6 +94,7 @@ export async function getPlanFeatures(
     .limit(1)
     .maybeSingle();
 
+  console.log('[getPlanFeatures] sub:', sub?.id ?? null, 'plan_id:', sub?.plan_id ?? null, 'err:', subErr?.message ?? null);
   if (!sub) return FREE_FEATURES;
 
   const isActive =
@@ -107,12 +102,14 @@ export async function getPlanFeatures(
     !!sub.current_period_end &&
     new Date(sub.current_period_end) > new Date();
 
+  console.log('[getPlanFeatures] isActive:', isActive, 'expires:', sub.current_period_end);
   if (!isActive) return FREE_FEATURES;
 
   const plan: any = Array.isArray(sub.plan) ? sub.plan[0] : sub.plan;
+  console.log('[getPlanFeatures] plan:', plan?.id ?? null, 'ip_blocking:', plan?.feature_ip_blocking ?? null);
   if (!plan) return FREE_FEATURES;
 
-  return {
+  const result = {
     planId:             plan.id,
     planName:           plan.name,
     planFamily:         plan.plan_family,
@@ -132,4 +129,7 @@ export async function getPlanFeatures(
     whitelabelReports:  plan.feature_whitelabel_reports   ?? false,
     multisiteDashboard: plan.feature_multisite_dashboard  ?? false,
   };
+
+  console.log('[getPlanFeatures] returning ipBlocking:', result.ipBlocking, 'awayMode:', result.awayMode);
+  return result;
 }
