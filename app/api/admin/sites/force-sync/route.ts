@@ -54,11 +54,14 @@ export async function POST(request: Request) {
   }
 
   // Load the raw site token (never exposed to the browser)
+  // site_tokens uses 'revoked' boolean, not 'is_active'
   const { data: tokenRow } = await admin
     .from("site_tokens")
     .select("token_hash")
     .eq("site_id", site_id)
-    .eq("is_active", true)
+    .eq("revoked", false)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (!tokenRow) {
