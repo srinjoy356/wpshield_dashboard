@@ -28,8 +28,8 @@ export async function verifyCompanyAccess(
     };
   }
 
-  // Admins can write to any company
-  if (profile.role === "admin") {
+  // Admins and Super Admins can write to any company
+  if (profile.role === "admin" || profile.role === "super_admin") {
     return { allowed: true };
   }
 

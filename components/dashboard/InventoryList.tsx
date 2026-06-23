@@ -99,13 +99,13 @@ export function InventoryList({ snapshot, siteId, autoUpdatePlugins }: Inventory
                           size="sm"
                           disabled={updatingPlugins[p.slug!]}
                           onClick={async () => {
-                            if (!siteId || !p.file) return;
+                            if (!siteId || !p.slug) return;
                             setUpdatingPlugins((prev) => ({ ...prev, [p.slug!]: true }));
                             try {
                               const res = await fetch("/api/sites/update-plugin", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ site_id: siteId, plugin_slug: p.file }),
+                                body: JSON.stringify({ site_id: siteId, plugin_slug: p.slug }),
                               });
                               if (!res.ok) {
                                 const errData = await res.json().catch(() => ({}));
