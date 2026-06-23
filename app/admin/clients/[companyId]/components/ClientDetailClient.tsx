@@ -302,7 +302,7 @@ export function ClientDetailClient({
         </TabsContent>
 
         <TabsContent value="inventory" className="outline-none">
-          <InventoryList snapshot={inventory} siteId={null} autoUpdatePlugins={company.auto_update_plugins} />
+          <InventoryList snapshot={inventory} siteId={null} autoUpdatePlugins={company.auto_update_plugins} autoUpdateThemes={company.auto_update_themes} />
         </TabsContent>
 
 

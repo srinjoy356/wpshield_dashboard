@@ -242,11 +242,71 @@ class WPShield_Receiver {
 
                 // Force a fresh inventory snapshot so the dashboard immediately sees the plugin as updated
                 do_action( 'wpshield_force_snapshot' );
+                if ( class_exists( 'WPShield_Transmitter' ) ) {
+                    WPShield_Transmitter::flush();
+                }
 
                 return rest_ensure_response( array(
                     'success' => true,
                     'message' => 'Plugin updated successfully.',
                     'action'  => 'update_plugin',
+                ) );
+
+            case 'update_theme':
+                if ( empty( $params['theme_slug'] ) ) {
+                    return new WP_Error( 'missing_slug', 'Theme slug is required.', array( 'status' => 400 ) );
+                }
+
+                $theme_slug = sanitize_text_field( $params['theme_slug'] );
+
+                if ( ! function_exists( 'request_filesystem_credentials' ) ) {
+                    require_once ABSPATH . 'wp-admin/includes/file.php';
+                }
+                
+                require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
+                require_once ABSPATH . 'wp-admin/includes/theme.php';
+
+                if ( defined( 'DISALLOW_FILE_MODS' ) && DISALLOW_FILE_MODS ) {
+                    return new WP_Error( 'file_mods_disallowed', 'File modifications are disabled on this site.', array( 'status' => 403 ) );
+                }
+
+                $current = get_site_transient( 'update_themes' );
+                if ( ! isset( $current->response[ $theme_slug ] ) ) {
+                    return new WP_Error( 'not_in_transient', 'Theme slug ' . $theme_slug . ' not found in update_themes transient. Are you sure an update is available?', array( 'status' => 400 ) );
+                }
+
+                // Check filesystem connectivity before upgrading
+                if ( ! function_exists( 'request_filesystem_credentials' ) ) {
+                    require_once ABSPATH . 'wp-admin/includes/file.php';
+                }
+                $creds = request_filesystem_credentials( '', '', false, false, null );
+                if ( ! WP_Filesystem( $creds ) ) {
+                    return new WP_Error( 'fs_unavailable', 'Direct filesystem access is not available.', array( 'status' => 500 ) );
+                }
+
+                // WP_Ajax_Upgrader_Skin is safer for REST requests
+                $skin = new WP_Ajax_Upgrader_Skin();
+                $upgrader = new Theme_Upgrader( $skin );
+                $result = $upgrader->upgrade( $theme_slug );
+
+                if ( is_wp_error( $result ) ) {
+                    return new WP_Error( 'update_failed', $result->get_error_message(), array( 'status' => 500 ) );
+                }
+
+                if ( $result === false ) {
+                    return new WP_Error( 'update_failed', 'Theme upgrader returned false without an error message.', array( 'status' => 500 ) );
+                }
+
+                // Force a fresh inventory snapshot so the dashboard immediately sees the theme as updated
+                do_action( 'wpshield_force_snapshot' );
+                if ( class_exists( 'WPShield_Transmitter' ) ) {
+                    WPShield_Transmitter::flush();
+                }
+
+                return rest_ensure_response( array(
+                    'success' => true,
+                    'message' => 'Theme updated successfully.',
+                    'action'  => 'update_theme',
                 ) );
 
             default:

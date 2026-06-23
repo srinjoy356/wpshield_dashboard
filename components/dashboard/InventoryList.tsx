@@ -13,12 +13,14 @@ interface InventoryListProps {
   snapshot: InventorySnapshotView | null;
   siteId: string | null;
   autoUpdatePlugins?: boolean;
+  autoUpdateThemes?: boolean;
 }
 
-export function InventoryList({ snapshot, siteId, autoUpdatePlugins }: InventoryListProps) {
+export function InventoryList({ snapshot, siteId, autoUpdatePlugins, autoUpdateThemes }: InventoryListProps) {
   const [pluginSearch, setPluginSearch] = useState("");
   const [themeSearch, setThemeSearch] = useState("");
   const [updatingPlugins, setUpdatingPlugins] = useState<Record<string, boolean>>({});
+  const [updatingThemes, setUpdatingThemes] = useState<Record<string, boolean>>({});
   const { toast } = useToast();
 
   const plugins = snapshot?.plugins ?? [];
@@ -184,9 +186,34 @@ export function InventoryList({ snapshot, siteId, autoUpdatePlugins }: Inventory
                       {!t.update_pending ? (
                         <span className="text-[var(--success)] font-medium">Up to date</span>
                       ) : (
-                        <span className="text-[var(--warning)] font-medium">
-                          v{t.new_version || "—"} available
-                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={updatingThemes[t.slug!]}
+                          onClick={async () => {
+                            if (!siteId || !t.slug) return;
+                            setUpdatingThemes((prev) => ({ ...prev, [t.slug!]: true }));
+                            try {
+                              const res = await fetch("/api/sites/update-theme", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ site_id: siteId, theme_slug: t.slug }),
+                              });
+                              if (!res.ok) {
+                                const errData = await res.json().catch(() => ({}));
+                                throw new Error(errData.error || "Update failed");
+                              }
+                              toast({ title: `${t.name} update triggered` });
+                            } catch (err: any) {
+                              toast({ title: `Failed to update ${t.name}`, description: err.message, variant: "destructive" });
+                            } finally {
+                              setUpdatingThemes((prev) => ({ ...prev, [t.slug!]: false }));
+                            }
+                          }}
+                        >
+                          {updatingThemes[t.slug!] && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                          Update to v{t.new_version}
+                        </Button>
                       )}
                     </td>
                   </tr>

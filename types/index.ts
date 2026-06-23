@@ -44,6 +44,7 @@ export interface Company {
   whitelabel_logo_url?: string | null;
   whitelabel_agency_name?: string | null;
   auto_update_plugins?: boolean;
+  auto_update_themes?: boolean;
   whitelabel_footer_text?: string | null;
 }
 

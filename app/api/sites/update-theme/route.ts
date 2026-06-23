@@ -9,15 +9,15 @@ export async function POST(req: Request) {
   try {
     const supabase = createClient();
     const profile = await getCurrentProfile(supabase);
-    // Allow users with a valid company to update their own plugins
+    // Allow users with a valid company to update their own themes
     if (!profile || !profile.company_id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
     const body = await req.json();
-    const { site_id, plugin_slug } = body;
+    const { site_id, theme_slug } = body;
 
-    if (!site_id || !plugin_slug) {
+    if (!site_id || !theme_slug) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
@@ -59,8 +59,8 @@ export async function POST(req: Request) {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${tokenData.token_hash}`,
       },
-      body: JSON.stringify({ action: "update_plugin", plugin_slug }),
-      signal: AbortSignal.timeout(60000), // 60s timeout for plugin updates
+      body: JSON.stringify({ action: "update_theme", theme_slug }),
+      signal: AbortSignal.timeout(60000), // 60s timeout for theme updates
     });
 
     const resultText = await wpResponse.text();
@@ -78,20 +78,20 @@ export async function POST(req: Request) {
     if (!wpResponse.ok || !result.success) {
       console.error("WP update failed. Result:", result);
       return NextResponse.json({
-        error: result.message || "Failed to update plugin on the site.",
+        error: result.message || "Failed to update theme on the site.",
         details: result
       }, { status: wpResponse.status });
     }
 
-    await logActivity(admin, profile.id, `Triggered plugin update for ${plugin_slug}`, profile.company_id, {
+    await logActivity(admin, profile.id, `Triggered theme update for ${theme_slug}`, profile.company_id, {
       site_id: site.id,
       site_url: site.url,
-      plugin_slug,
+      theme_slug,
     });
 
-    return NextResponse.json({ success: true, message: "Plugin update triggered" });
+    return NextResponse.json({ success: true, message: "Theme update triggered" });
   } catch (error: any) {
-    console.error("Plugin update error:", error);
+    console.error("Theme update error:", error);
     return NextResponse.json({ error: "Internal Server Error", details: error.message }, { status: 500 });
   }
 }

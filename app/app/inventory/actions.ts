@@ -25,3 +25,24 @@ export async function toggleAutoUpdatePlugins(companyId: string, enabled: boolea
 
   revalidatePath("/app/inventory");
 }
+
+export async function toggleAutoUpdateThemes(companyId: string, enabled: boolean) {
+  const supabase = createClient();
+  const profile = await getCurrentProfile(supabase);
+  
+  if (!profile || profile.company_id !== companyId) {
+    throw new Error("Unauthorized");
+  }
+
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from("companies")
+    .update({ auto_update_themes: enabled })
+    .eq("company_id", companyId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  revalidatePath("/app/inventory");
+}

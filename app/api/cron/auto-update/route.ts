@@ -8,12 +8,12 @@ export async function GET(req: Request) {
   try {
     const admin = createAdminClient();
 
-    // Fetch all companies with auto_update_plugins enabled
+    // Fetch all companies with auto-update enabled for either plugins or themes
     const { data: companies, error: companiesError } = await admin
       .from("companies")
-      .select("company_id")
-      .eq("auto_update_plugins", true)
-      .eq("status", "active");
+      .select("company_id, auto_update_plugins, auto_update_themes")
+      .eq("status", "active")
+      .or("auto_update_plugins.eq.true,auto_update_themes.eq.true");
 
     if (companiesError || !companies) {
       console.error("Auto-update cron failed to fetch companies", companiesError);
@@ -24,7 +24,8 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: "No companies with auto-update enabled" });
     }
 
-    const companyIds = companies.map(c => c.company_id);
+    const companyMap = new Map(companies.map((c) => [c.company_id, c]));
+    const companyIds = Array.from(companyMap.keys());
 
     // Fetch all active sites for these companies
     const { data: sites, error: sitesError } = await admin
@@ -40,6 +41,9 @@ export async function GET(req: Request) {
     let updatesTriggered = 0;
 
     for (const site of sites) {
+      const companyConfig = companyMap.get(site.company_id);
+      if (!companyConfig) continue;
+
       // Get site token
       const { data: tokenData } = await admin
         .from("site_tokens")
@@ -55,44 +59,84 @@ export async function GET(req: Request) {
       const inventory = await getLatestInventoryByKind(admin, site.company_id, site.id);
       if (!inventory) continue;
 
-      const pluginsToUpdate = inventory.plugins.filter((p: any) => p.update_pending);
-      if (pluginsToUpdate.length === 0) continue;
-
       const siteUrl = site.url.replace(/\/$/, "");
       const targetUrl = `${siteUrl}/wp-json/wpshield/v1/remediate`;
 
-      for (const plugin of pluginsToUpdate) {
-        try {
-          const wpResponse = await safeFetch(targetUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${tokenData.token_hash}`,
-            },
-            body: JSON.stringify({ action: "update_plugin", plugin_slug: plugin.file }),
-            signal: AbortSignal.timeout(30000),
-          });
-
-          const resultText = await wpResponse.text();
-          let result;
+      // 1. Process Plugins
+      if (companyConfig.auto_update_plugins && inventory.plugins) {
+        const pluginsToUpdate = inventory.plugins.filter((p: any) => p.update_pending);
+        
+        for (const plugin of pluginsToUpdate) {
           try {
-            result = JSON.parse(resultText);
-          } catch {
-            // Ignore invalid json responses
-            continue;
-          }
-
-          if (wpResponse.ok && result.success) {
-            updatesTriggered++;
-            await logActivity(admin, "system", `Auto-updated plugin ${plugin.slug}`, site.company_id, {
-              site_id: site.id,
-              site_url: site.url,
-              plugin_slug: plugin.slug,
-              action: "auto_update_plugin"
+            const wpResponse = await safeFetch(targetUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${tokenData.token_hash}`,
+              },
+              body: JSON.stringify({ action: "update_plugin", plugin_slug: plugin.slug }),
+              signal: AbortSignal.timeout(60000), // 60s timeout
             });
+
+            const resultText = await wpResponse.text();
+            let result;
+            try {
+              result = JSON.parse(resultText);
+            } catch {
+              continue; // Ignore invalid json responses
+            }
+
+            if (wpResponse.ok && result.success) {
+              updatesTriggered++;
+              await logActivity(admin, "system", `Auto-updated plugin ${plugin.name || plugin.slug}`, site.company_id, {
+                site_id: site.id,
+                site_url: site.url,
+                plugin_slug: plugin.slug,
+                action: "auto_update_plugin"
+              });
+            }
+          } catch (error) {
+            console.error(`Failed to auto-update plugin ${plugin.slug} on ${site.url}`, error);
           }
-        } catch (error) {
-          console.error(`Failed to auto-update ${plugin.slug} on ${site.url}`, error);
+        }
+      }
+
+      // 2. Process Themes
+      if (companyConfig.auto_update_themes && inventory.themes) {
+        const themesToUpdate = inventory.themes.filter((t: any) => t.update_pending);
+        
+        for (const theme of themesToUpdate) {
+          try {
+            const wpResponse = await safeFetch(targetUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${tokenData.token_hash}`,
+              },
+              body: JSON.stringify({ action: "update_theme", theme_slug: theme.slug }),
+              signal: AbortSignal.timeout(60000), // 60s timeout
+            });
+
+            const resultText = await wpResponse.text();
+            let result;
+            try {
+              result = JSON.parse(resultText);
+            } catch {
+              continue; // Ignore invalid json responses
+            }
+
+            if (wpResponse.ok && result.success) {
+              updatesTriggered++;
+              await logActivity(admin, "system", `Auto-updated theme ${theme.name || theme.slug}`, site.company_id, {
+                site_id: site.id,
+                site_url: site.url,
+                theme_slug: theme.slug,
+                action: "auto_update_theme"
+              });
+            }
+          } catch (error) {
+            console.error(`Failed to auto-update theme ${theme.slug} on ${site.url}`, error);
+          }
         }
       }
     }

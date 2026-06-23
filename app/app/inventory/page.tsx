@@ -12,6 +12,7 @@ import { Package, ShieldAlert } from "lucide-react";
 import { redirect } from "next/navigation";
 import { SiteSwitcher } from "@/components/dashboard/SiteSwitcher";
 import { AutoUpdateToggle } from "@/components/dashboard/AutoUpdateToggle";
+import { AutoUpdateThemeToggle } from "@/components/dashboard/AutoUpdateThemeToggle";
 
 interface Props {
   searchParams: Promise<{ site?: string }>;
@@ -37,7 +38,7 @@ export default async function InventoryPage({ searchParams }: Props) {
 
   const { data: company } = await supabase
     .from("companies")
-    .select("site_url, auto_update_plugins")
+    .select("site_url, auto_update_plugins, auto_update_themes")
     .eq("company_id", companyId)
     .single();
 
@@ -87,7 +88,10 @@ export default async function InventoryPage({ searchParams }: Props) {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <PageHeader title="Site Inventory" subtitle={`${selectedTarget.url} · Asset Management`} />
-        <AutoUpdateToggle companyId={companyId} initialValue={!!company?.auto_update_plugins} />
+        <div className="flex items-center gap-4">
+          <AutoUpdateToggle companyId={companyId} initialValue={!!company?.auto_update_plugins} />
+          <AutoUpdateThemeToggle companyId={companyId} initialValue={!!company?.auto_update_themes} />
+        </div>
       </div>
 
       {targets.length > 1 && (
@@ -144,6 +148,7 @@ export default async function InventoryPage({ searchParams }: Props) {
             snapshot={snapshot} 
             siteId={selectedTarget.site_id} 
             autoUpdatePlugins={!!company?.auto_update_plugins} 
+            autoUpdateThemes={!!company?.auto_update_themes}
           />
 
           <hr className="border-[var(--border)] my-8" />
