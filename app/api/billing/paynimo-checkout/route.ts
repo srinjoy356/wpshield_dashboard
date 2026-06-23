@@ -69,39 +69,9 @@ export async function POST(request: Request) {
     const txnRefNo  = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 min expiry
 
-    // Block here, before any payment happens — not after the fact in paynimo-return.
-    // Checking post-payment can only clean up the resulting mess; by then the customer
-    // has already paid for a plan that conflicts with the one they're already on. This
-    // doesn't block renewing the SAME plan you already have (that's the legitimate
-    // early-renewal case paynimo-return already handles) — only buying a DIFFERENT one
-    // while a subscription is active.
-    const { data: existingCustomer } = await admin
-      .from('customers')
-      .select('id')
-      .eq('owner_user_id', user_id)
-      .maybeSingle();
-
-    if (existingCustomer) {
-      const { data: activeSub } = await admin
-        .from('subscriptions')
-        .select('plan_id')
-        .eq('customer_id', existingCustomer.id)
-        .eq('status', 'active')
-        .neq('plan_id', plan.id)
-        .maybeSingle();
-
-      if (activeSub) {
-        const { data: activePlan } = await admin
-          .from('plans')
-          .select('name')
-          .eq('id', activeSub.plan_id)
-          .maybeSingle();
-
-        return NextResponse.json({
-          error: `You already have an active ${activePlan?.name || activeSub.plan_id} plan. Switching plans isn't available from checkout yet — contact support if you need to change plans.`,
-        }, { status: 409 });
-      }
-    }
+    // Plan switches (upgrades/downgrades) are allowed.
+    // provision-payment.ts cancels the existing subscription when a new one
+    // is created for a different plan — no double-subscription risk.
 
     // Create pending checkout record — return handler verifies against this
     const { error: pcErr } = await admin.from('pending_checkouts').insert({
