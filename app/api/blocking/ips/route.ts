@@ -56,6 +56,16 @@ export async function POST(request: Request) {
   const { allowed, response: denyResponse } = await verifyCompanyAccess(supabase, user.id, company_id);
   if (!allowed) return denyResponse!;
 
+  // Gate: IP blocking requires Solo+
+  const { getPlanFeatures } = await import('@/lib/billing/get-plan-features');
+  const features = await getPlanFeatures(supabase, user.id);
+  if (!features.ipBlocking) {
+    return NextResponse.json(
+      { error: 'IP blocking requires Solo plan or above.' },
+      { status: 403 }
+    );
+  }
+
   // Basic IPv4 validation
   const ipv4 = /^(\d{1,3}\.){3}\d{1,3}$/;
   if (!ipv4.test(ip)) {

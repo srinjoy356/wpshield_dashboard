@@ -61,6 +61,11 @@ export async function POST(request: Request) {
     }
 
     const amount    = effectivePrice.amount;
+
+    // Block free plans — amount=0 would send a ₹0 request to Paynimo which rejects it.
+    if (amount <= 0) {
+      return NextResponse.json({ error: "This plan is free and does not require a payment." }, { status: 400 });
+    }
     const txnRefNo  = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 min expiry
 

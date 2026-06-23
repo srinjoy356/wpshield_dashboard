@@ -53,18 +53,21 @@ export async function POST(request: Request) {
     const { data: company } = await supabase
       .from('companies')
       .select('company_id')
-      .eq('company_id', provided_company_id)
+      .ilike('company_id', provided_company_id)
       .maybeSingle();
 
     if (!company) {
-      return NextResponse.json({ error: 'Company not found. Log in to your WPShield dashboard and copy your Company ID.' }, { status: 404 });
+      return NextResponse.json({ error: 'Company not found. Log in to your WPShield dashboard and copy your exact Company ID from Settings.' }, { status: 404 });
     }
+
+    // Use the exact company_id from the DB (preserves original case)
+    const canonical_company_id = company.company_id;
 
     // Check if this domain is already registered under this company
     const { data: existingSite } = await supabase
       .from('sites')
       .select('id, is_active')
-      .eq('company_id', provided_company_id)
+      .eq('company_id', canonical_company_id)
       .eq('normalized_domain', normalized_domain)
       .maybeSingle();
 
@@ -83,7 +86,7 @@ export async function POST(request: Request) {
       const { data: newSite, error: siteErr } = await supabase
         .from('sites')
         .insert({
-          company_id:        provided_company_id,
+          company_id:        canonical_company_id,
           url:               site_url,
           normalized_domain,
           is_active:         true,
@@ -109,7 +112,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success:    true,
       site_token: rawToken,
-      company_id: provided_company_id,
+      company_id: canonical_company_id,
     });
 
   } catch (err: any) {
