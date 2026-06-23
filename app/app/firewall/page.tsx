@@ -17,8 +17,6 @@ export default async function ClientFirewallPage({
   if (!profile) redirect("/login");
 
   const { data: { user } } = await supabase.auth.getUser();
-
-  // Base plan features for the logged-in user
   const userFeatures = await getPlanFeatures(supabase, user!.id);
 
   const company = profile.company_id
@@ -27,7 +25,8 @@ export default async function ClientFirewallPage({
 
   const admin = createAdminClient();
 
-  // Load sites with license info so we can check per-site premium status
+  // Load sites WITH license_id so FirewallPageContent can determine
+  // per-site premium status client-side (since site selection is client state)
   const { data: sitesRaw } = company
     ? await admin
         .from("sites")
@@ -39,10 +38,10 @@ export default async function ClientFirewallPage({
 
   const sites = sitesRaw ?? [];
 
-  // Check which sites have an active premium license
-  // A site is premium if its license_id links to an active subscription
-  const premiumSiteIds = new Set<string>();
-  const licenseIds = sites.map(s => s.license_id).filter(Boolean);
+  // Build premiumSiteIds on the server where we can query licenses/subscriptions
+  // Pass it to the client so FirewallPageContent can gate per selected site
+  const premiumSiteIds: string[] = [];
+  const licenseIds = sites.map(s => s.license_id).filter(Boolean) as string[];
 
   if (licenseIds.length > 0) {
     const { data: licenses } = await admin
@@ -52,7 +51,7 @@ export default async function ClientFirewallPage({
       .eq("status", "active");
 
     if (licenses && licenses.length > 0) {
-      const subIds = licenses.map(l => l.subscription_id).filter(Boolean);
+      const subIds = licenses.map(l => l.subscription_id).filter(Boolean) as string[];
       const { data: subs } = await admin
         .from("subscriptions")
         .select("id, status, current_period_end")
@@ -67,30 +66,14 @@ export default async function ClientFirewallPage({
 
       for (const license of licenses) {
         if (activeSubs.has(license.subscription_id)) {
-          // Find which site has this license
           const site = sites.find(s => s.license_id === license.id);
-          if (site) premiumSiteIds.add(site.id);
+          if (site) premiumSiteIds.push(site.id);
         }
       }
     }
   }
 
-  const selectedSiteId = searchParams.site ?? null;
-
-  // Determine effective features:
-  // - If a specific site is selected: use that site's premium status
-  // - If all-sites view (no site selected): use the user's plan features
-  //   (company-level controls like IP/geo blocking apply to all sites
-  //   so they follow the user's subscription)
-  const selectedSite = selectedSiteId
-    ? sites.find(s => s.id === selectedSiteId)
-    : null;
-
-  const selectedSiteIsPremium = selectedSite
-    ? premiumSiteIds.has(selectedSite.id)
-    : userFeatures.isActive; // all-sites view — use account-level
-
-  // Strip license_id from sites before passing to client component (not needed there)
+  // Strip license_id before sending to client component
   const sitesForClient = sites.map(({ license_id, ...rest }) => rest);
 
   return (
@@ -98,13 +81,16 @@ export default async function ClientFirewallPage({
       profile={profile}
       company={company}
       sites={sitesForClient}
-      selectedSiteId={selectedSiteId}
-      features={{
-        ipBlocking:      selectedSiteIsPremium && userFeatures.ipBlocking,
-        geoBlocking:     selectedSiteIsPremium && userFeatures.geoBlocking,
-        awayMode:        selectedSiteIsPremium && userFeatures.awayMode,
-        maintenanceMode: userFeatures.maintenanceMode, // maintenance available on all plans
+      selectedSiteId={searchParams.site ?? null}
+      // User-level feature flags (what their plan allows)
+      userFeatures={{
+        ipBlocking:      userFeatures.ipBlocking,
+        geoBlocking:     userFeatures.geoBlocking,
+        awayMode:        userFeatures.awayMode,
+        maintenanceMode: userFeatures.maintenanceMode,
       }}
+      // Which site IDs have an active paid license
+      premiumSiteIds={premiumSiteIds}
     />
   );
 }

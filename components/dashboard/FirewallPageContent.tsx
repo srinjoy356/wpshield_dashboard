@@ -30,11 +30,15 @@ interface FeatureFlags {
 }
 
 interface Props {
-  profile:        UserProfile;
-  company:        Company | null;
-  sites?:         SiteRow[];
-  selectedSiteId?: string | null;
-  features?:      FeatureFlags;
+  profile:          UserProfile;
+  company:          Company | null;
+  sites?:           SiteRow[];
+  selectedSiteId?:  string | null;
+  // Legacy flat prop (kept for backward compat, used when no premiumSiteIds)
+  features?:        FeatureFlags;
+  // New: user's plan-level flags + per-site premium status
+  userFeatures?:    FeatureFlags;
+  premiumSiteIds?:  string[];
 }
 
 const DEFAULT_FEATURES: FeatureFlags = {
@@ -49,7 +53,9 @@ export function FirewallPageContent({
   company,
   sites = [],
   selectedSiteId: initialSiteId = null,
-  features = DEFAULT_FEATURES,
+  features,
+  userFeatures,
+  premiumSiteIds = [],
 }: Props) {
   const { toast }  = useToast();
   const [activeTab, setActiveTab]       = useState("Site Controls");
@@ -63,6 +69,23 @@ export function FirewallPageContent({
   const selectedSite = selectedSiteId
     ? sites.find((s) => s.id === selectedSiteId) ?? null
     : null;
+
+  // Compute effective features based on which site is selected.
+  // If premiumSiteIds is provided (new path): gate premium features per selected site.
+  // If only flat features provided (legacy): use them directly.
+  const base = userFeatures ?? features ?? DEFAULT_FEATURES;
+  const selectedSiteIsPremium = selectedSite
+    ? premiumSiteIds.includes(selectedSite.id)
+    : premiumSiteIds.length > 0; // all-sites view: unlocked if ANY site is premium
+
+  const effectiveFeatures: FeatureFlags = userFeatures
+    ? {
+        maintenanceMode: base.maintenanceMode,           // always available
+        ipBlocking:      base.ipBlocking,                // company-wide, uses account plan
+        geoBlocking:     base.geoBlocking,               // company-wide, uses account plan
+        awayMode:        base.awayMode && selectedSiteIsPremium, // per-site premium check
+      }
+    : (features ?? DEFAULT_FEATURES);
 
   // ── Force Sync — single button, targets selected site or all ──────────────
   async function handleForceSync() {
@@ -224,7 +247,7 @@ export function FirewallPageContent({
                         Restrict wp-admin access to specific days and hours.
                       </p>
                     </div>
-                    {features.awayMode ? (
+                    {effectiveFeatures.awayMode ? (
                       <AwayModeBuilder company={company} site={selectedSite ?? undefined} />
                     ) : (
                       <UpgradeLock
@@ -243,7 +266,7 @@ export function FirewallPageContent({
                         Block specific IP addresses across all your sites.
                       </p>
                     </div>
-                    {features.ipBlocking ? (
+                    {effectiveFeatures.ipBlocking ? (
                       <BlockingManager company={company} />
                     ) : (
                       <UpgradeLock
@@ -262,7 +285,7 @@ export function FirewallPageContent({
                         Block entire countries from accessing your sites.
                       </p>
                     </div>
-                    {features.geoBlocking ? (
+                    {effectiveFeatures.geoBlocking ? (
                       <GeoBlockingManager company={company} />
                     ) : (
                       <UpgradeLock
