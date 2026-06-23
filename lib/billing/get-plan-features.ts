@@ -1,72 +1,70 @@
 /**
  * get-plan-features.ts
  *
- * Server-side helper. Given a Supabase client scoped to an authenticated user,
- * resolves what plan they are on and returns their feature entitlements.
+ * Server-side helper — resolves the current user's plan and returns their
+ * feature entitlements.
  *
- * Called from every server page that needs to gate features.
- * Returns a null-safe object — callers never need to handle undefined.
+ * Uses the ADMIN client deliberately so RLS on plans/subscriptions/customers
+ * never silently filters rows and causes a false fallback to Core features.
+ * This function is only ever called from server components and API routes —
+ * never from the browser — so bypassing RLS here is safe and correct.
  */
 
-import { SupabaseClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export interface PlanFeatures {
-  // Which plan
-  planId:          string | null;
-  planName:        string | null;
-  planFamily:      string | null;
-  billingInterval: string | null;
-  maxSites:        number;
-  isActive:        boolean;       // subscription active + not expired
-
-  // Feature gates — mirrors the feature_ columns added in plans setup SQL
+  planId:             string | null;
+  planName:           string | null;
+  planFamily:         string | null;
+  billingInterval:    string | null;
+  maxSites:           number;
+  isActive:           boolean;
   cloudDashboard:     boolean;
   emailAlerts:        boolean;
   slackAlerts:        boolean;
-  fileIntegrityFull:  boolean;   // false = limited (last 7 days only, no download)
-  activityLogsFull:   boolean;   // false = limited (last 7 days only)
+  fileIntegrityFull:  boolean;
+  activityLogsFull:   boolean;
   ipBlocking:         boolean;
   geoBlocking:        boolean;
   awayMode:           boolean;
   maintenanceMode:    boolean;
   pdfReports:         boolean;
   whitelabelReports:  boolean;
-  multisiteDashboard: boolean;   // false = single site only
+  multisiteDashboard: boolean;
 }
 
-const FREE_FEATURES: PlanFeatures = {
-  planId:              'core',
-  planName:            'Core',
-  planFamily:          'core',
-  billingInterval:     'free',
-  maxSites:            1,
-  isActive:            true,      // core is always "active" — no subscription needed
-  cloudDashboard:      false,
-  emailAlerts:         false,
-  slackAlerts:         false,
-  fileIntegrityFull:   false,
-  activityLogsFull:    false,
-  ipBlocking:          false,
-  geoBlocking:         false,
-  awayMode:            false,
-  maintenanceMode:     true,      // core gets maintenance mode per feature table
-  pdfReports:          false,
-  whitelabelReports:   false,
-  multisiteDashboard:  false,
+export const FREE_FEATURES: PlanFeatures = {
+  planId:             'core',
+  planName:           'Core',
+  planFamily:         'core',
+  billingInterval:    'free',
+  maxSites:           1,
+  isActive:           true,
+  cloudDashboard:     false,
+  emailAlerts:        false,
+  slackAlerts:        false,
+  fileIntegrityFull:  false,
+  activityLogsFull:   false,
+  ipBlocking:         false,
+  geoBlocking:        false,
+  awayMode:           false,
+  maintenanceMode:    true,
+  pdfReports:         false,
+  whitelabelReports:  false,
+  multisiteDashboard: false,
 };
 
 export const NO_PLAN = FREE_FEATURES;
 
-/**
- * Load the current user's plan features.
- * Always returns a valid PlanFeatures object — falls back to Core (free) if
- * there is no active subscription.
- */
 export async function getPlanFeatures(
-  supabase: SupabaseClient,
+  _unusedUserScopedClient: unknown,
   userId: string,
 ): Promise<PlanFeatures> {
-  // 1. Find customer record
+  // Always use admin client — user-scoped client is subject to RLS which can
+  // silently filter plan rows (active column mismatch) causing false Core fallback.
+  const supabase = createAdminClient();
+
+  // 1. Find customer
   const { data: customer } = await supabase
     .from('customers')
     .select('id')
@@ -75,7 +73,7 @@ export async function getPlanFeatures(
 
   if (!customer) return FREE_FEATURES;
 
-  // 2. Find active subscription with plan details
+  // 2. Find active subscription + plan features in one query
   const { data: sub } = await supabase
     .from('subscriptions')
     .select(`
@@ -104,7 +102,8 @@ export async function getPlanFeatures(
 
   if (!sub) return FREE_FEATURES;
 
-  const isActive = sub.status === 'active' &&
+  const isActive =
+    sub.status === 'active' &&
     !!sub.current_period_end &&
     new Date(sub.current_period_end) > new Date();
 
@@ -114,23 +113,23 @@ export async function getPlanFeatures(
   if (!plan) return FREE_FEATURES;
 
   return {
-    planId:              plan.id,
-    planName:            plan.name,
-    planFamily:          plan.plan_family,
-    billingInterval:     plan.billing_interval,
-    maxSites:            plan.max_sites ?? 1,
-    isActive:            true,
-    cloudDashboard:      plan.feature_cloud_dashboard      ?? false,
-    emailAlerts:         plan.feature_email_alerts         ?? false,
-    slackAlerts:         plan.feature_slack_alerts         ?? false,
-    fileIntegrityFull:   plan.feature_file_integrity_full  ?? false,
-    activityLogsFull:    plan.feature_activity_logs_full   ?? false,
-    ipBlocking:          plan.feature_ip_blocking          ?? false,
-    geoBlocking:         plan.feature_geo_blocking         ?? false,
-    awayMode:            plan.feature_away_mode            ?? false,
-    maintenanceMode:     plan.feature_maintenance_mode     ?? true,
-    pdfReports:          plan.feature_pdf_reports          ?? false,
-    whitelabelReports:   plan.feature_whitelabel_reports   ?? false,
-    multisiteDashboard:  plan.feature_multisite_dashboard  ?? false,
+    planId:             plan.id,
+    planName:           plan.name,
+    planFamily:         plan.plan_family,
+    billingInterval:    plan.billing_interval,
+    maxSites:           plan.max_sites ?? 1,
+    isActive:           true,
+    cloudDashboard:     plan.feature_cloud_dashboard      ?? false,
+    emailAlerts:        plan.feature_email_alerts         ?? false,
+    slackAlerts:        plan.feature_slack_alerts         ?? false,
+    fileIntegrityFull:  plan.feature_file_integrity_full  ?? false,
+    activityLogsFull:   plan.feature_activity_logs_full   ?? false,
+    ipBlocking:         plan.feature_ip_blocking          ?? false,
+    geoBlocking:        plan.feature_geo_blocking         ?? false,
+    awayMode:           plan.feature_away_mode            ?? false,
+    maintenanceMode:    plan.feature_maintenance_mode     ?? true,
+    pdfReports:         plan.feature_pdf_reports          ?? false,
+    whitelabelReports:  plan.feature_whitelabel_reports   ?? false,
+    multisiteDashboard: plan.feature_multisite_dashboard  ?? false,
   };
 }
